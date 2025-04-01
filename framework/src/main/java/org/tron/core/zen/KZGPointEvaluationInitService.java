@@ -38,11 +38,14 @@ public class KZGPointEvaluationInitService {
         String setupFile = getSetupFile("trusted_setup.txt");
 
         CKZG4844JNI.loadTrustedSetup(setupFile, 0);
+        logger.info("Correct Pass");
+        throw new Exception("Correct Pass");
       } catch (Exception e) {
+        logger.info("Correct Error");
         throw new TronError(e, TronError.ErrCode.CKZG_INIT);
       }
 
-      logger.info("init ckzg 4844 done");
+//      logger.info("init ckzg 4844 done");
     }
   }
 
