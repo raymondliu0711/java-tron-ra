@@ -1,8 +1,8 @@
 package org.tron.core.vm;
 
 import static java.util.Arrays.copyOfRange;
-import static org.tron.common.crypto.ckzg4844.CKZG4844JNI.BLS_MODULUS;
-import static org.tron.common.crypto.ckzg4844.CKZG4844JNI.FIELD_ELEMENTS_PER_BLOB;
+import static ethereum.ckzg4844.CKZG4844JNI.BLS_MODULUS;
+import static ethereum.ckzg4844.CKZG4844JNI.FIELD_ELEMENTS_PER_BLOB;
 import static org.tron.common.math.Maths.max;
 import static org.tron.common.math.Maths.min;
 import static org.tron.common.runtime.vm.DataWord.WORD_SIZE;
@@ -34,7 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import org.tron.common.crypto.ckzg4844.CKZG4844JNI;
+import ethereum.ckzg4844.CKZG4844JNI;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;

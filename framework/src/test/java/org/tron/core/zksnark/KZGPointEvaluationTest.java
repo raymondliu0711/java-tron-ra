@@ -10,10 +10,10 @@ import org.bouncycastle.util.encoders.Hex;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.MockedStatic;
-import org.tron.common.crypto.ckzg4844.CKZG4844JNI;
-import org.tron.common.crypto.ckzg4844.CKZGException;
-import org.tron.common.crypto.ckzg4844.CellsAndProofs;
-import org.tron.common.crypto.ckzg4844.ProofAndY;
+import ethereum.ckzg4844.CKZG4844JNI;
+import ethereum.ckzg4844.CKZGException;
+import ethereum.ckzg4844.CellsAndProofs;
+import ethereum.ckzg4844.ProofAndY;
 import org.tron.core.exception.TronError;
 import org.tron.core.zen.KZGPointEvaluationInitService;
 
