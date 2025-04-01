@@ -16,7 +16,7 @@ public class CKZG4844JNI {
   /** Loads the appropriate native library based on your platform. */
   public static void loadNativeLibrary() {
     String libraryResourcePath =
-        "/lib/" + System.getProperty("os.arch") + "/" + PLATFORM_NATIVE_LIBRARY_NAME;
+        "lib/" + System.getProperty("os.arch") + "/" + PLATFORM_NATIVE_LIBRARY_NAME;
     InputStream libraryResource = CKZG4844JNI.class.getResourceAsStream(libraryResourcePath);
     if (libraryResource == null) {
       try {
