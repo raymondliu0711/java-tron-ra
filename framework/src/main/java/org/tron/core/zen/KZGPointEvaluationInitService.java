@@ -35,9 +35,10 @@ public class KZGPointEvaluationInitService {
       try {
         CKZG4844JNI.loadNativeLibrary();
 
-        String setupFile = getSetupFile("trusted_setup.txt");
+//        String setupFile = getSetupFile("trusted_setup.txt");
 
-        CKZG4844JNI.loadTrustedSetup(setupFile, 0);
+        CKZG4844JNI.loadTrustedSetupFromResource(
+           "/kzg-trusted-setups/trusted_setup.txt", KZGPointEvaluationInitService.class, 0);
       } catch (Exception e) {
         throw new TronError(e, TronError.ErrCode.CKZG_INIT);
       }
