@@ -433,6 +433,8 @@ public class ProposalUtilTest extends BaseTest {
 
     testEnergyAdjustmentProposal();
 
+    testPectraProposal();
+
     forkUtils.getManager().getDynamicPropertiesStore()
         .statsByVersion(ForkBlockVersionEnum.ENERGY_LIMIT.getValue(), stats);
     forkUtils.reset();
@@ -496,6 +498,63 @@ public class ProposalUtilTest extends BaseTest {
     } catch (ContractValidateException e) {
       Assert.assertEquals(
           "[ALLOW_ENERGY_ADJUSTMENT] has been valid, no need to propose again",
+          e.getMessage());
+    }
+  }
+
+  private void testPectraProposal() {
+    // Should fail because cannot pass the fork controller check
+    try {
+      ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
+          ProposalType.ALLOW_PECTRA.getCode(), 1);
+      Assert.fail();
+    } catch (ContractValidateException e) {
+      Assert.assertEquals(
+          "Bad chain parameter id [ALLOW_PECTRA]",
+          e.getMessage());
+    }
+
+    long maintenanceTimeInterval = forkUtils.getManager().getDynamicPropertiesStore()
+        .getMaintenanceTimeInterval();
+
+    long hardForkTime =
+        ((ForkBlockVersionEnum.VERSION_4_8_1.getHardForkTime() - 1) / maintenanceTimeInterval + 1)
+            * maintenanceTimeInterval;
+    forkUtils.getManager().getDynamicPropertiesStore()
+        .saveLatestBlockHeaderTimestamp(hardForkTime + 1);
+
+    byte[] stats = new byte[27];
+    Arrays.fill(stats, (byte) 1);
+    forkUtils.getManager().getDynamicPropertiesStore()
+        .statsByVersion(ForkBlockVersionEnum.VERSION_4_8_1.getValue(), stats);
+
+    // Should fail because the proposal value is invalid
+    try {
+      ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
+          ProposalType.ALLOW_PECTRA.getCode(), 2);
+      Assert.fail();
+    } catch (ContractValidateException e) {
+      Assert.assertEquals(
+          "This value[ALLOW_PECTRA] is only allowed to be 1",
+          e.getMessage());
+    }
+
+    // Should succeed
+    try {
+      ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
+          ProposalType.ALLOW_PECTRA.getCode(), 1);
+    } catch (Throwable t) {
+      Assert.fail();
+    }
+
+    dynamicPropertiesStore.saveAllowPectra(1L);
+    try {
+      ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
+          ProposalType.ALLOW_PECTRA.getCode(), 1);
+      Assert.fail();
+    } catch (ContractValidateException e) {
+      Assert.assertEquals(
+          "[ALLOW_PECTRA] has been valid, no need to propose again",
           e.getMessage());
     }
   }

@@ -235,6 +235,7 @@ public class Args extends CommonParameter {
     PARAMETER.allowOldRewardOpt = 0;
     PARAMETER.allowEnergyAdjustment = 0;
     PARAMETER.allowStrictMath = 0;
+    PARAMETER.allowPectra = 0;
   }
 
   /**
@@ -1221,6 +1222,10 @@ public class Args extends CommonParameter {
     PARAMETER.allowStrictMath =
         config.hasPath(Constant.COMMITTEE_ALLOW_STRICT_MATH) ? config
             .getInt(Constant.COMMITTEE_ALLOW_STRICT_MATH) : 0;
+
+    PARAMETER.allowPectra =
+        config.hasPath(Constant.COMMITTEE_ALLOW_PECTRA) ? config
+            .getInt(Constant.COMMITTEE_ALLOW_PECTRA) : 0;
 
     logConfig();
   }

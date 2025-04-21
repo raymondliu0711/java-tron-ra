@@ -224,6 +224,8 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
   private static final byte[] MAX_CREATE_ACCOUNT_TX_SIZE = "MAX_CREATE_ACCOUNT_TX_SIZE".getBytes();
   private static final byte[] ALLOW_STRICT_MATH = "ALLOW_STRICT_MATH".getBytes();
 
+  private static final byte[] ALLOW_PECTRA = "ALLOW_PECTRA".getBytes();
+
   @Autowired
   private DynamicPropertiesStore(@Value("properties") String dbName) {
     super(dbName);
@@ -2889,6 +2891,21 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
 
   public boolean allowStrictMath() {
     return getAllowStrictMath() == 1L;
+  }
+
+  public long getAllowPectra() {
+    return Optional.ofNullable(getUnchecked(ALLOW_PECTRA))
+        .map(BytesCapsule::getData)
+        .map(ByteArray::toLong)
+        .orElse(CommonParameter.getInstance().getAllowPectra());
+  }
+
+  public void saveAllowPectra(long allowPectra) {
+    this.put(ALLOW_PECTRA, new BytesCapsule(ByteArray.fromLong(allowPectra)));
+  }
+
+  public boolean allowPectra() {
+    return getAllowPectra() == 1L;
   }
 
   private static class DynamicResourceProperties {

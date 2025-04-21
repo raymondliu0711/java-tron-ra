@@ -1348,6 +1348,11 @@ public class Wallet {
         .setValue(dbManager.getDynamicPropertiesStore().getAllowStrictMath())
         .build());
 
+    builder.addChainParameter(Protocol.ChainParameters.ChainParameter.newBuilder()
+        .setKey("getAllowPectra")
+        .setValue(dbManager.getDynamicPropertiesStore().getAllowPectra())
+        .build());
+
     return builder.build();
   }
 
