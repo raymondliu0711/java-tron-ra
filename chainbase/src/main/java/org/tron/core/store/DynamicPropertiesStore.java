@@ -224,7 +224,7 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
   private static final byte[] MAX_CREATE_ACCOUNT_TX_SIZE = "MAX_CREATE_ACCOUNT_TX_SIZE".getBytes();
   private static final byte[] ALLOW_STRICT_MATH = "ALLOW_STRICT_MATH".getBytes();
 
-  private static final byte[] ALLOW_PECTRA = "ALLOW_PECTRA".getBytes();
+  private static final byte[] ALLOW_TVM_PRAGUE = "ALLOW_TVM_PRAGUE".getBytes();
 
   @Autowired
   private DynamicPropertiesStore(@Value("properties") String dbName) {
@@ -2893,19 +2893,19 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
     return getAllowStrictMath() == 1L;
   }
 
-  public long getAllowPectra() {
-    return Optional.ofNullable(getUnchecked(ALLOW_PECTRA))
+  public long getAllowTvmPrague() {
+    return Optional.ofNullable(getUnchecked(ALLOW_TVM_PRAGUE))
         .map(BytesCapsule::getData)
         .map(ByteArray::toLong)
-        .orElse(CommonParameter.getInstance().getAllowPectra());
+        .orElse(CommonParameter.getInstance().getAllowTvmPrague());
   }
 
-  public void saveAllowPectra(long allowPectra) {
-    this.put(ALLOW_PECTRA, new BytesCapsule(ByteArray.fromLong(allowPectra)));
+  public void saveAllowTvmPrague(long allowTvmPrague) {
+    this.put(ALLOW_TVM_PRAGUE, new BytesCapsule(ByteArray.fromLong(allowTvmPrague)));
   }
 
-  public boolean allowPectra() {
-    return getAllowPectra() == 1L;
+  public boolean allowTvmPrague() {
+    return getAllowTvmPrague() == 1L;
   }
 
   private static class DynamicResourceProperties {

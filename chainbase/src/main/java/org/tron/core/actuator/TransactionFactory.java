@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.tron.common.parameter.CommonParameter;
 import org.tron.protos.Protocol.Transaction.Contract.ContractType;
 import org.tron.protos.contract.SmartContractOuterClass.CreateSmartContract;
+import org.tron.protos.contract.SmartContractOuterClass.SetCodeContract;
 import org.tron.protos.contract.SmartContractOuterClass.TriggerSmartContract;
 
 public class TransactionFactory {
@@ -17,6 +18,7 @@ public class TransactionFactory {
   static {
     register(ContractType.CreateSmartContract, null, CreateSmartContract.class);
     register(ContractType.TriggerSmartContract, null, TriggerSmartContract.class);
+    register(ContractType.SetCodeContract, null, SetCodeContract.class);
   }
 
   public static void register(ContractType type, Class<? extends Actuator> actuatorClass,

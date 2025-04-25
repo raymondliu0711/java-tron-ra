@@ -2,6 +2,7 @@ package org.tron.core.db;
 
 import static org.tron.common.runtime.InternalTransaction.TrxType.TRX_CONTRACT_CALL_TYPE;
 import static org.tron.common.runtime.InternalTransaction.TrxType.TRX_CONTRACT_CREATION_TYPE;
+import static org.tron.common.runtime.InternalTransaction.TrxType.TRX_CONTRACT_SET_CODE_TYPE;
 import static org.tron.core.config.Parameter.ChainConstant.WINDOW_SIZE_PRECISION;
 import static org.tron.protos.contract.Common.ResourceCode.ENERGY;
 
@@ -93,6 +94,9 @@ public class TransactionTrace {
       case ContractType.CreateSmartContract_VALUE:
         trxType = TRX_CONTRACT_CREATION_TYPE;
         break;
+      case ContractType.SetCodeContract_VALUE:
+        trxType = TRX_CONTRACT_SET_CODE_TYPE;
+        break;
       default:
         trxType = TrxType.TRX_PRECOMPILED_TYPE;
     }
@@ -116,7 +120,8 @@ public class TransactionTrace {
 
   private boolean needVM() {
     return this.trxType == TRX_CONTRACT_CALL_TYPE
-        || this.trxType == TRX_CONTRACT_CREATION_TYPE;
+        || this.trxType == TRX_CONTRACT_CREATION_TYPE
+        || this.trxType == TRX_CONTRACT_SET_CODE_TYPE;
   }
 
   public void init(BlockCapsule blockCap) {
@@ -130,13 +135,14 @@ public class TransactionTrace {
         eventPluginLoaded);
   }
 
+  // todo
   public void checkIsConstant() throws ContractValidateException, VMIllegalException {
     if (dynamicPropertiesStore.getAllowTvmConstantinople() == 1) {
       return;
     }
     TriggerSmartContract triggerContractFromTransaction = ContractCapsule
         .getTriggerContractFromTransaction(this.getTrx().getInstance());
-    if (TRX_CONTRACT_CALL_TYPE == this.trxType) {
+    if (TRX_CONTRACT_CALL_TYPE == this.trxType || TRX_CONTRACT_SET_CODE_TYPE == this.trxType) {
       ContractCapsule contract = contractStore
           .get(triggerContractFromTransaction.getContractAddress().toByteArray());
       if (contract == null) {
@@ -237,8 +243,9 @@ public class TransactionTrace {
         originAccount = callerAccount;
         break;
       case TRX_CONTRACT_CALL_TYPE:
+      case TRX_CONTRACT_SET_CODE_TYPE:
         TriggerSmartContract callContract = ContractCapsule
-            .getTriggerContractFromTransaction(trx.getInstance());
+            .getCommonTriggerContractFromTransaction(trx.getInstance());
         ContractCapsule contractCapsule =
             contractStore.get(callContract.getContractAddress().toByteArray());
 

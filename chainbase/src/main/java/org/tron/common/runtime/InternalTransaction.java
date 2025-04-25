@@ -33,6 +33,7 @@ import org.tron.core.capsule.TransactionCapsule;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Protocol.Transaction;
 import org.tron.protos.contract.SmartContractOuterClass.CreateSmartContract;
+import org.tron.protos.contract.SmartContractOuterClass.SetCodeContract;
 import org.tron.protos.contract.SmartContractOuterClass.TriggerSmartContract;
 
 public class InternalTransaction {
@@ -105,6 +106,18 @@ public class InternalTransaction {
       this.receiveAddress = contract.getContractAddress().toByteArray();
       this.transferToAddress = this.receiveAddress.clone();
       this.note = "call";
+      this.value = contract.getCallValue();
+      this.data = contract.getData().toByteArray();
+      this.tokenInfo.put(String.valueOf(contract.getTokenId()), contract.getCallTokenValue());
+    } else if (trxType == TrxType.TRX_CONTRACT_SET_CODE_TYPE) {
+      SetCodeContract contract = ContractCapsule.getSetCodeContractFromTransaction(trx);
+      if (contract == null) {
+        throw new ContractValidateException("Invalid SetCodeContract Protocol");
+      }
+      this.sendAddress = contract.getOwnerAddress().toByteArray();
+      this.receiveAddress = contract.getContractAddress().toByteArray();
+      this.transferToAddress = this.receiveAddress.clone();
+      this.note = "setCode";
       this.value = contract.getCallValue();
       this.data = contract.getData().toByteArray();
       this.tokenInfo.put(String.valueOf(contract.getTokenId()), contract.getCallTokenValue());
@@ -266,6 +279,7 @@ public class InternalTransaction {
     TRX_PRECOMPILED_TYPE,
     TRX_CONTRACT_CREATION_TYPE,
     TRX_CONTRACT_CALL_TYPE,
+    TRX_CONTRACT_SET_CODE_TYPE,
     TRX_UNKNOWN_TYPE,
   }
 

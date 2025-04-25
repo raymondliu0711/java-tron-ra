@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import lombok.extern.slf4j.Slf4j;
+import org.bouncycastle.util.encoders.Hex;
 import org.tron.common.utils.ByteArray;
 import org.tron.common.utils.ByteUtil;
 import org.tron.common.utils.Commons;
@@ -29,6 +30,8 @@ import org.tron.core.vm.repository.Repository;
 public final class VMUtils {
 
   private static final int BUF_SIZE = 4096;
+
+  public static final byte[] CODE_DELEGATION_PREFIX = Hex.decode("ef0100");
 
   private VMUtils() {
   }
@@ -242,5 +245,15 @@ public final class VMUtils {
     }
 
     return true;
+  }
+
+  public static boolean isCodeDelegation(byte[] address) {
+    // tron address size + prefix size
+    if (address != null && address.length != 35) {
+      return false;
+    }
+
+    byte[] prefix = Arrays.copyOfRange(address, 0, CODE_DELEGATION_PREFIX.length);
+    return Arrays.equals(prefix, CODE_DELEGATION_PREFIX);
   }
 }

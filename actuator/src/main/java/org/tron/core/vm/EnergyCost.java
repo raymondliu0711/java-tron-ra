@@ -57,6 +57,7 @@ public class EnergyCost {
   private static final long SUICIDE = 0;
   private static final long STOP = 0;
   private static final long CREATE_DATA = 200;
+  private static final long TX_AUTH_TUPLE = 12500;
 
   public static long getZeroTierCost(Program ignored) {
     return ZERO_TIER;
@@ -485,6 +486,9 @@ public class EnergyCost {
     return CREATE_DATA;
   }
 
+  public static long getTxAuthTuple() {
+    return TX_AUTH_TUPLE;
+  }
 
   private static long calcMemEnergy(long oldMemSize, BigInteger newMemSize,
                              long copySize, int op) {

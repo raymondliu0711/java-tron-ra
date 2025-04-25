@@ -388,5 +388,5 @@ public class Constant {
   public static final String COMMITTEE_ALLOW_ENERGY_ADJUSTMENT = "committee.allowEnergyAdjustment";
   public static final String COMMITTEE_ALLOW_STRICT_MATH = "committee.allowStrictMath";
 
-  public static final String COMMITTEE_ALLOW_PECTRA = "committee.allowPectra";
+  public static final String COMMITTEE_ALLOW_TVM_PRAGUE = "committee.allowTvmPrague";
 }

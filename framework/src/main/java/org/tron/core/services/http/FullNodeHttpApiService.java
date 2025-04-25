@@ -293,6 +293,8 @@ public class FullNodeHttpApiService extends HttpService {
   private UnDelegateResourceServlet unDelegateResourceServlet;
   @Autowired
   private CancelAllUnfreezeV2Servlet cancelAllUnfreezeV2Servlet;
+  @Autowired
+  private TriggerSetCodeContractServlet triggerSetCodeContractServlet;
 
   @Override
   public void init() {
@@ -519,6 +521,8 @@ public class FullNodeHttpApiService extends HttpService {
           "/wallet/undelegateresource");
       context.addServlet(new ServletHolder(cancelAllUnfreezeV2Servlet),
           "/wallet/cancelallunfreezev2");
+      context.addServlet(new ServletHolder(triggerSetCodeContractServlet),
+          "/wallet/triggersetcodecontract");
 
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {

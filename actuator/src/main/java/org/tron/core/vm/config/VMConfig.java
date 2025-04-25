@@ -53,7 +53,7 @@ public class VMConfig {
 
   private static boolean ALLOW_STRICT_MATH = false;
 
-  private static boolean ALLOW_PECTRA = false;
+  private static boolean ALLOW_TVM_PRAGUE = false;
 
   private VMConfig() {
   }
@@ -150,8 +150,8 @@ public class VMConfig {
     ALLOW_STRICT_MATH = allow == 1;
   }
 
-  public static void initAllowPectra(long allow) {
-    ALLOW_PECTRA = allow == 1;
+  public static void initAllowTvmPrague(long allow) {
+    ALLOW_TVM_PRAGUE = allow == 1;
   }
 
   public static boolean getEnergyLimitHardFork() {
@@ -238,7 +238,7 @@ public class VMConfig {
     return ALLOW_STRICT_MATH;
   }
 
-  public static boolean allowPectra() {
-    return ALLOW_PECTRA;
+  public static boolean allowTvmPrague() {
+    return ALLOW_TVM_PRAGUE;
   }
 }

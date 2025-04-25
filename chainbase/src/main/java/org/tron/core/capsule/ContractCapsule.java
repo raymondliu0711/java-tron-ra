@@ -28,7 +28,7 @@ import org.tron.protos.contract.SmartContractOuterClass.CreateSmartContract;
 import org.tron.protos.contract.SmartContractOuterClass.SmartContract;
 import org.tron.protos.contract.SmartContractOuterClass.SmartContract.ABI;
 import org.tron.protos.contract.SmartContractOuterClass.SmartContractDataWrapper;
-import org.tron.protos.contract.SmartContractOuterClass.SmartContractDataWrapperOrBuilder;
+import org.tron.protos.contract.SmartContractOuterClass.SetCodeContract;
 import org.tron.protos.contract.SmartContractOuterClass.TriggerSmartContract;
 
 @Slf4j(topic = "capsule")
@@ -67,6 +67,37 @@ public class ContractCapsule implements ProtoCapsule<SmartContract> {
       Any any = trx.getRawData().getContract(0).getParameter();
       TriggerSmartContract contractTriggerContract = any.unpack(TriggerSmartContract.class);
       return contractTriggerContract;
+    } catch (InvalidProtocolBufferException e) {
+      return null;
+    }
+  }
+
+  public static TriggerSmartContract getCommonTriggerContractFromTransaction(Transaction trx) {
+    try {
+      Any any = trx.getRawData().getContract(0).getParameter();
+      if (any.is(TriggerSmartContract.class)) {
+        return any.unpack(TriggerSmartContract.class);
+      } else {
+        SetCodeContract setCodeContract = any.unpack(SetCodeContract.class);
+        return TriggerSmartContract.newBuilder()
+            .setOwnerAddress(setCodeContract.getOwnerAddress())
+            .setContractAddress(setCodeContract.getContractAddress())
+            .setCallValue(setCodeContract.getCallValue())
+            .setData(setCodeContract.getData())
+            .setCallTokenValue(setCodeContract.getCallTokenValue())
+            .setTokenId(setCodeContract.getTokenId())
+            .build();
+      }
+    } catch (InvalidProtocolBufferException e) {
+      return null;
+    }
+  }
+
+  public static SetCodeContract getSetCodeContractFromTransaction(Transaction trx) {
+    try {
+      Any any = trx.getRawData().getContract(0).getParameter();
+      SetCodeContract setCodeContract = any.unpack(SetCodeContract.class);
+      return setCodeContract;
     } catch (InvalidProtocolBufferException e) {
       return null;
     }

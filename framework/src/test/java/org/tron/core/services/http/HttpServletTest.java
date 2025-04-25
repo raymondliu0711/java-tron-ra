@@ -140,6 +140,7 @@ public class HttpServletTest {
   private WithdrawBalanceServlet withdrawBalanceServlet;
   private WithdrawExpireUnfreezeServlet withdrawExpireUnfreezeServlet;
   private CancelAllUnfreezeV2Servlet cancelAllUnfreezeV2Servlet;
+  private TriggerSetCodeContractServlet triggerSetCodeContractServlet;
   private MockHttpServletRequest request;
   private MockHttpServletResponse response;
 
@@ -277,6 +278,7 @@ public class HttpServletTest {
     withdrawBalanceServlet = new WithdrawBalanceServlet();
     withdrawExpireUnfreezeServlet = new WithdrawExpireUnfreezeServlet();
     cancelAllUnfreezeV2Servlet = new CancelAllUnfreezeV2Servlet();
+    triggerSetCodeContractServlet = new TriggerSetCodeContractServlet();
     request = new MockHttpServletRequest();
     request.setCharacterEncoding("UTF-8");
     response = new MockHttpServletResponse();
@@ -398,6 +400,7 @@ public class HttpServletTest {
     voteWitnessAccountServlet.doGet(request, response);
     withdrawBalanceServlet.doGet(request, response);
     withdrawExpireUnfreezeServlet.doGet(request, response);
+    triggerSetCodeContractServlet.doGet(request, response);
   }
 
 

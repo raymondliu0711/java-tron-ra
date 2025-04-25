@@ -371,8 +371,8 @@ public class ProposalService extends ProposalUtil {
           manager.getDynamicPropertiesStore().saveAllowStrictMath(entry.getValue());
           break;
         }
-        case ALLOW_PECTRA: {
-          manager.getDynamicPropertiesStore().saveAllowPectra(entry.getValue());
+        case ALLOW_TVM_PRAGUE: {
+          manager.getDynamicPropertiesStore().saveAllowTvmPrague(entry.getValue());
           break;
         }
         default:

@@ -433,7 +433,7 @@ public class ProposalUtilTest extends BaseTest {
 
     testEnergyAdjustmentProposal();
 
-    testPectraProposal();
+    testTvmPragueProposal();
 
     forkUtils.getManager().getDynamicPropertiesStore()
         .statsByVersion(ForkBlockVersionEnum.ENERGY_LIMIT.getValue(), stats);
@@ -502,15 +502,15 @@ public class ProposalUtilTest extends BaseTest {
     }
   }
 
-  private void testPectraProposal() {
+  private void testTvmPragueProposal() {
     // Should fail because cannot pass the fork controller check
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
-          ProposalType.ALLOW_PECTRA.getCode(), 1);
+          ProposalType.ALLOW_TVM_PRAGUE.getCode(), 1);
       Assert.fail();
     } catch (ContractValidateException e) {
       Assert.assertEquals(
-          "Bad chain parameter id [ALLOW_PECTRA]",
+          "Bad chain parameter id [ALLOW_TVM_PRAGUE]",
           e.getMessage());
     }
 
@@ -531,30 +531,30 @@ public class ProposalUtilTest extends BaseTest {
     // Should fail because the proposal value is invalid
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
-          ProposalType.ALLOW_PECTRA.getCode(), 2);
+          ProposalType.ALLOW_TVM_PRAGUE.getCode(), 2);
       Assert.fail();
     } catch (ContractValidateException e) {
       Assert.assertEquals(
-          "This value[ALLOW_PECTRA] is only allowed to be 1",
+          "This value[ALLOW_TVM_PRAGUE] is only allowed to be 1",
           e.getMessage());
     }
 
     // Should succeed
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
-          ProposalType.ALLOW_PECTRA.getCode(), 1);
+          ProposalType.ALLOW_TVM_PRAGUE.getCode(), 1);
     } catch (Throwable t) {
       Assert.fail();
     }
 
-    dynamicPropertiesStore.saveAllowPectra(1L);
+    dynamicPropertiesStore.saveAllowTvmPrague(1L);
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
-          ProposalType.ALLOW_PECTRA.getCode(), 1);
+          ProposalType.ALLOW_TVM_PRAGUE.getCode(), 1);
       Assert.fail();
     } catch (ContractValidateException e) {
       Assert.assertEquals(
-          "[ALLOW_PECTRA] has been valid, no need to propose again",
+          "[ALLOW_TVM_PRAGUE] has been valid, no need to propose again",
           e.getMessage());
     }
   }

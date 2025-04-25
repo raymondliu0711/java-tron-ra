@@ -2,12 +2,16 @@ package org.tron.core.actuator;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 import static org.apache.commons.lang3.ArrayUtils.getLength;
 import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
+import static org.tron.core.vm.VMUtils.CODE_DELEGATION_PREFIX;
+import static org.tron.core.vm.VMUtils.isCodeDelegation;
 import static org.tron.protos.contract.Common.ResourceCode.ENERGY;
 
 import com.google.protobuf.ByteString;
 import java.math.BigInteger;
+import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -16,6 +20,8 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.util.encoders.Hex;
+import org.checkerframework.checker.units.qual.C;
+import org.tron.common.crypto.SignUtils;
 import org.tron.common.logsfilter.trigger.ContractTrigger;
 import org.tron.common.parameter.CommonParameter;
 import org.tron.common.runtime.InternalTransaction;
@@ -23,14 +29,18 @@ import org.tron.common.runtime.InternalTransaction.ExecutorType;
 import org.tron.common.runtime.InternalTransaction.TrxType;
 import org.tron.common.runtime.ProgramResult;
 import org.tron.common.runtime.vm.DataWord;
+import org.tron.common.utils.ByteUtil;
+import org.tron.common.utils.Sha256Hash;
 import org.tron.common.utils.StorageUtils;
 import org.tron.common.utils.StringUtil;
 import org.tron.common.utils.WalletUtil;
 import org.tron.core.ChainBaseManager;
 import org.tron.core.capsule.AccountCapsule;
+import org.tron.core.capsule.AccountSetCodeAuthorizationCapsule;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.ContractCapsule;
 import org.tron.core.capsule.ReceiptCapsule;
+import org.tron.core.capsule.TransactionCapsule;
 import org.tron.core.db.EnergyProcessor;
 import org.tron.core.db.TransactionContext;
 import org.tron.core.exception.ContractExeException;
@@ -62,6 +72,8 @@ import org.tron.protos.Protocol.Transaction.Contract.ContractType;
 import org.tron.protos.Protocol.Transaction.Result.contractResult;
 import org.tron.protos.contract.SmartContractOuterClass.CreateSmartContract;
 import org.tron.protos.contract.SmartContractOuterClass.SmartContract;
+import org.tron.protos.contract.SmartContractOuterClass.SetCodeAuthorization;
+import org.tron.protos.contract.SmartContractOuterClass.SetCodeContract;
 import org.tron.protos.contract.SmartContractOuterClass.TriggerSmartContract;
 
 @Slf4j(topic = "VM")
@@ -159,6 +171,10 @@ public class VMActuator implements Actuator2 {
       case ContractType.CreateSmartContract_VALUE:
         trxType = TrxType.TRX_CONTRACT_CREATION_TYPE;
         create();
+        break;
+      case ContractType.SetCodeContract_VALUE:
+        trxType = TrxType.TRX_CONTRACT_SET_CODE_TYPE;
+        setCode(context.getProgramResult());
         break;
       default:
         throw new ContractValidateException("Unknown contract type");
@@ -455,13 +471,13 @@ public class VMActuator implements Actuator2 {
       throw new ContractValidateException("VM work is off, need to be opened by the committee");
     }
 
-    TriggerSmartContract contract = ContractCapsule.getTriggerContractFromTransaction(trx);
+    TriggerSmartContract contract = ContractCapsule.getCommonTriggerContractFromTransaction(trx);
     if (contract == null) {
       return;
     }
 
     if (contract.getContractAddress() == null) {
-      throw new ContractValidateException("Cannot get contract address from TriggerContract");
+      throw new ContractValidateException("Cannot get contract address from " + trxType);
     }
 
     byte[] contractAddress = contract.getContractAddress().toByteArray();
@@ -493,6 +509,11 @@ public class VMActuator implements Actuator2 {
     checkTokenValueAndId(tokenValue, tokenId);
 
     byte[] code = rootRepository.getCode(contractAddress);
+    if (isCodeDelegation(code)) {
+      byte[] parsedCodeAddress = Arrays.copyOfRange(
+          code, CODE_DELEGATION_PREFIX.length, code.length);
+      code = rootRepository.getCode(parsedCodeAddress);
+    }
     if (isNotEmpty(code)) {
       long feeLimit = trx.getRawData().getFeeLimit();
       if (feeLimit < 0 || feeLimit > rootRepository.getDynamicPropertiesStore().getMaxFeeLimit()) {
@@ -517,7 +538,7 @@ public class VMActuator implements Actuator2 {
       long vmStartInUs = System.nanoTime() / VMConstant.ONE_THOUSAND;
       long vmShouldEndInUs = vmStartInUs + thisTxCPULimitInUs;
       ProgramInvoke programInvoke = ProgramInvokeFactory
-          .createProgramInvoke(TrxType.TRX_CONTRACT_CALL_TYPE, executorType, trx,
+          .createProgramInvoke(trxType, executorType, trx,
               tokenValue, tokenId, blockCap.getInstance(), rootRepository, vmStartInUs,
               vmShouldEndInUs, energyLimit);
       if (isConstantCall) {
@@ -548,6 +569,129 @@ public class VMActuator implements Actuator2 {
           tokenValue);
     }
 
+  }
+
+  private void setCode(ProgramResult result) throws ContractValidateException {
+    if (!VMConfig.allowTvmPrague()) {
+      throw new ContractValidateException("SetCode transaction is not allowed");
+    }
+
+    SetCodeContract contract = ContractCapsule.getSetCodeContractFromTransaction(trx);
+    if (contract == null) {
+      return;
+    }
+
+    if (isEmpty(contract.getContractAddress().toByteArray())) {
+      throw new ContractValidateException("Cannot get contract address from set code transaction");
+    }
+
+    List<SetCodeAuthorization> authsList = contract.getAuthsList();
+    if (authsList.isEmpty()) {
+      throw new ContractValidateException("SetCode transaction with empty auth list");
+    }
+
+    for (SetCodeAuthorization setCodeAuthorization : authsList) {
+      applyAuthorization(setCodeAuthorization, result);
+    }
+
+    call();
+  }
+
+  private void applyAuthorization(
+      SetCodeAuthorization setCodeAuthorization, ProgramResult result) {
+    result.spendEnergy(EnergyCost.getNewAcctCall());
+    byte[] authority;
+    try {
+      authority = validateAuthorization(setCodeAuthorization);
+    } catch (ContractValidateException e) {
+      return;
+    }
+
+    AccountCapsule authorityAccount = rootRepository.getAccount(authority);
+    if (authorityAccount == null) {
+      rootRepository.createAccount(authority, Protocol.AccountType.Normal);
+    } else {
+      result.refundEnergy(EnergyCost.getNewAcctCall() - EnergyCost.getTxAuthTuple());
+    }
+    // update nonce
+    addAuthorityNonce(authority);
+
+    // set code to authority
+    setCodeToAuthority(authority, setCodeAuthorization.getAuth().toByteArray());
+  }
+
+  private byte[] validateAuthorization(
+      SetCodeAuthorization setCodeAuthorization) throws ContractValidateException {
+    if (setCodeAuthorization.getAuth().getNonce() + 1 < setCodeAuthorization.getAuth().getNonce()) {
+      throw new ContractValidateException("SetCode authorization's nonce > 64 bit");
+    }
+
+    byte[] authority = getSetCodeAuthority(setCodeAuthorization);
+    // check account type
+    AccountCapsule authorityAccount = rootRepository.getAccount(authority);
+    if (authorityAccount != null && authorityAccount.getType() == Protocol.AccountType.Contract) {
+      throw new ContractValidateException("SetCode authorization's destination is a contract");
+    }
+
+    AccountSetCodeAuthorizationCapsule authCapsule
+        = rootRepository.getAccountSetCodeAuthorization(authority);
+    if (authCapsule != null && authCapsule.getNonce() != setCodeAuthorization.getAuth().getNonce()) {
+      throw new ContractValidateException(
+          "SetCode authorization's nonce does not match current account nonce");
+    }
+
+    return authority;
+  }
+
+  private byte[] getSetCodeAuthority(
+      SetCodeAuthorization setCodeAuthorization) throws ContractValidateException {
+    ByteString sig = setCodeAuthorization.getSignature();
+    if (sig.size() < 65) {
+      throw new ContractValidateException("SetCode transaction invalid signatures");
+    }
+
+    String base64 = TransactionCapsule.getBase64FromByteString(sig);
+    byte[] hash = Sha256Hash.of(
+        CommonParameter.getInstance().isECKeyCryptoEngine(),
+        setCodeAuthorization.getAuth().toByteArray()).getBytes();
+    try {
+      return SignUtils
+          .signatureToAddress(hash, base64, CommonParameter.getInstance().isECKeyCryptoEngine());
+    } catch (SignatureException e) {
+      throw new ContractValidateException(e.getMessage());
+    }
+  }
+
+  private void addAuthorityNonce(byte[] authority) {
+    AccountSetCodeAuthorizationCapsule authCapsule
+        = rootRepository.getAccountSetCodeAuthorization(authority);
+    if (authCapsule == null) {
+      authCapsule = new AccountSetCodeAuthorizationCapsule();
+    }
+    authCapsule.addNonce();
+    rootRepository.updateAccountSetCodeAuthorization(authority, authCapsule);
+  }
+
+  private void setCodeToAuthority(byte[] authority, byte[] codeAddress) {
+    ContractCapsule contractCapsule = rootRepository.getContract(authority);
+    if (contractCapsule == null) {
+      SmartContract.Builder builder = SmartContract.newBuilder();
+      if (VMConfig.allowTvmCompatibleEvm()) {
+        builder.setVersion(1);
+      }
+      builder.setContractAddress(ByteString.copyFrom(authority))
+          .setConsumeUserResourcePercent(100)
+          .setOriginAddress(ByteString.copyFrom(authority));
+      SmartContract newSmartContract = builder.build();
+      contractCapsule = new ContractCapsule(newSmartContract);
+      rootRepository.createContract(authority, contractCapsule);
+    }
+    if (isEmpty(codeAddress) || Arrays.equals(codeAddress, DataWord.ZERO.getData())) {
+      rootRepository.saveCode(authority, ByteUtil.EMPTY_BYTE_ARRAY);
+    } else {
+      byte[] delegatedCodeAddress = ByteUtil.merge(CODE_DELEGATION_PREFIX, codeAddress);
+      rootRepository.saveCode(authority, delegatedCodeAddress);
+    }
   }
 
   public long getAccountEnergyLimitWithFixRatio(AccountCapsule account, long feeLimit,

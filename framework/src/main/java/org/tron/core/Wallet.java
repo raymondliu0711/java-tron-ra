@@ -468,7 +468,8 @@ public class Wallet {
     TransactionCapsule trx = new TransactionCapsule(message, contractType);
     trx.setTransactionCreate(true);
     if (contractType != ContractType.CreateSmartContract
-        && contractType != ContractType.TriggerSmartContract) {
+        && contractType != ContractType.TriggerSmartContract
+        && contractType != ContractType.SetCodeContract) {
       List<Actuator> actList = ActuatorFactory.createActuator(trx, chainBaseManager);
       for (Actuator act : actList) {
         act.validate();
@@ -1349,8 +1350,8 @@ public class Wallet {
         .build());
 
     builder.addChainParameter(Protocol.ChainParameters.ChainParameter.newBuilder()
-        .setKey("getAllowPectra")
-        .setValue(dbManager.getDynamicPropertiesStore().getAllowPectra())
+        .setKey("getAllowTvmPrague")
+        .setValue(dbManager.getDynamicPropertiesStore().getAllowTvmPrague())
         .build());
 
     return builder.build();

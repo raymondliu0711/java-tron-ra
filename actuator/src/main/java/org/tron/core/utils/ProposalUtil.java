@@ -794,18 +794,18 @@ public class ProposalUtil {
         }
         break;
       }
-      case ALLOW_PECTRA: {
+      case ALLOW_TVM_PRAGUE: {
         if (!forkController.pass(ForkBlockVersionEnum.VERSION_4_8_1)) {
           throw new ContractValidateException(
-              "Bad chain parameter id [ALLOW_PECTRA]");
+              "Bad chain parameter id [ALLOW_TVM_PRAGUE]");
         }
-        if (dynamicPropertiesStore.allowPectra()) {
+        if (dynamicPropertiesStore.allowTvmPrague()) {
           throw new ContractValidateException(
-              "[ALLOW_PECTRA] has been valid, no need to propose again");
+              "[ALLOW_TVM_PRAGUE] has been valid, no need to propose again");
         }
         if (value != 1) {
           throw new ContractValidateException(
-              "This value[ALLOW_PECTRA] is only allowed to be 1");
+              "This value[ALLOW_TVM_PRAGUE] is only allowed to be 1");
         }
         break;
       }
@@ -889,7 +889,7 @@ public class ProposalUtil {
     ALLOW_ENERGY_ADJUSTMENT(81), // 0, 1
     MAX_CREATE_ACCOUNT_TX_SIZE(82), // [500, 10000]
     ALLOW_STRICT_MATH(87), // 0, 1
-    ALLOW_PECTRA(92); // 0, 1
+    ALLOW_TVM_PRAGUE(92); // 0, 1
 
     private long code;
 

@@ -9,6 +9,8 @@ import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
 import static org.apache.commons.lang3.ArrayUtils.nullToEmpty;
 import static org.tron.common.utils.ByteUtil.stripLeadingZeroes;
 import static org.tron.core.config.Parameter.ChainConstant.TRX_PRECISION;
+import static org.tron.core.vm.VMUtils.CODE_DELEGATION_PREFIX;
+import static org.tron.core.vm.VMUtils.isCodeDelegation;
 import static org.tron.protos.contract.Common.ResourceCode.BANDWIDTH;
 import static org.tron.protos.contract.Common.ResourceCode.ENERGY;
 import static org.tron.protos.contract.Common.ResourceCode.TRON_POWER;
@@ -953,6 +955,11 @@ public class Program {
 
     byte[] programCode =
         accountCapsule != null ? getContractState().getCode(codeAddress) : EMPTY_BYTE_ARRAY;
+    if (isCodeDelegation(programCode)) {
+      byte[] parsedCodeAddress = Arrays.copyOfRange(
+          programCode, CODE_DELEGATION_PREFIX.length, programCode.length);
+      programCode = getContractState().getCode(parsedCodeAddress);
+    }
 
     // only for TRX, not for token
     long contextBalance = 0L;

@@ -1133,6 +1133,8 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
         return buildCreateSmartContractTransaction(fromAddressData, args);
       case ContractType.TriggerSmartContract_VALUE:
         return buildTriggerSmartContractTransaction(fromAddressData, args);
+      case ContractType.SetCodeContract_VALUE:
+        return buildTriggerSmartContractTransaction(fromAddressData, args);
       case ContractType.TransferContract_VALUE:
         return buildTransferContractTransaction(fromAddressData, args);
       case ContractType.TransferAssetContract_VALUE:

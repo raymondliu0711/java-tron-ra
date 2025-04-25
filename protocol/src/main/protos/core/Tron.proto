@@ -377,6 +377,7 @@ message Transaction {
       DelegateResourceContract = 57;
       UnDelegateResourceContract = 58;
       CancelAllUnfreezeV2Contract = 59;
+      SetCodeContract = 60;
     }
     ContractType type = 1;
     google.protobuf.Any parameter = 2;
@@ -890,4 +891,8 @@ message PBFTCommitResult {
 
 message SRL {
   repeated bytes srAddress = 1;
+}
+
+message AccountSetCodeAuthorization {
+  int64 nonce = 1;
 }
