@@ -8,10 +8,8 @@ import com.google.protobuf.ProtocolStringList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyServerBuilder;
-import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,7 +73,6 @@ import org.tron.api.WalletExtensionGrpc;
 import org.tron.api.WalletGrpc.WalletImplBase;
 import org.tron.api.WalletSolidityGrpc.WalletSolidityImplBase;
 import org.tron.common.application.RpcService;
-import org.tron.common.es.ExecutorServiceManager;
 import org.tron.common.parameter.CommonParameter;
 import org.tron.common.utils.ByteArray;
 import org.tron.common.utils.Sha256Hash;
@@ -97,10 +94,6 @@ import org.tron.core.exception.StoreException;
 import org.tron.core.exception.VMIllegalException;
 import org.tron.core.exception.ZksnarkException;
 import org.tron.core.metrics.MetricsApiService;
-import org.tron.core.services.filter.LiteFnQueryGrpcInterceptor;
-import org.tron.core.services.ratelimiter.PrometheusInterceptor;
-import org.tron.core.services.ratelimiter.RateLimiterInterceptor;
-import org.tron.core.services.ratelimiter.RpcApiAccessInterceptor;
 import org.tron.core.utils.TransactionUtil;
 import org.tron.core.zen.address.DiversifierT;
 import org.tron.core.zen.address.IncomingViewingKey;
@@ -153,6 +146,7 @@ import org.tron.protos.contract.ShieldContract.IncrementalMerkleVoucherInfo;
 import org.tron.protos.contract.ShieldContract.OutputPointInfo;
 import org.tron.protos.contract.SmartContractOuterClass.ClearABIContract;
 import org.tron.protos.contract.SmartContractOuterClass.CreateSmartContract;
+import org.tron.protos.contract.SmartContractOuterClass.SetCodeContract;
 import org.tron.protos.contract.SmartContractOuterClass.SmartContract;
 import org.tron.protos.contract.SmartContractOuterClass.SmartContractDataWrapper;
 import org.tron.protos.contract.SmartContractOuterClass.TriggerSmartContract;
@@ -183,15 +177,7 @@ public class RpcApiService extends RpcService {
   @Autowired
   private NodeInfoService nodeInfoService;
   @Autowired
-  private RateLimiterInterceptor rateLimiterInterceptor;
-  @Autowired
-  private LiteFnQueryGrpcInterceptor liteFnQueryGrpcInterceptor;
-  @Autowired
-  private RpcApiAccessInterceptor apiAccessInterceptor;
-  @Autowired
   private MetricsApiService metricsApiService;
-  @Autowired
-  private PrometheusInterceptor prometheusInterceptor;
   @Getter
   private DatabaseApi databaseApi = new DatabaseApi();
   private WalletApi walletApi = new WalletApi();
@@ -200,75 +186,27 @@ public class RpcApiService extends RpcService {
   @Getter
   private MonitorApi monitorApi = new MonitorApi();
 
-  private final String executorName = "rpc-full-executor";
-
-  @Override
-  public void init() {
-
-  }
-
-  @Override
-  public void init(CommonParameter args) {
+  public RpcApiService() {
     port = Args.getInstance().getRpcPort();
+    enable = Args.getInstance().isRpcEnable();
+    executorName = "rpc-full-executor";
   }
 
   @Override
-  public void start() {
-    try {
-      NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(port).addService(databaseApi);
-      CommonParameter parameter = Args.getInstance();
-
-      if (parameter.getRpcThreadNum() > 0) {
-        serverBuilder = serverBuilder
-            .executor(ExecutorServiceManager.newFixedThreadPool(
-                executorName, parameter.getRpcThreadNum()));
+  protected void addService(NettyServerBuilder serverBuilder) {
+    serverBuilder.addService(databaseApi);
+    CommonParameter parameter = Args.getInstance();
+    if (parameter.isSolidityNode()) {
+      serverBuilder.addService(walletSolidityApi);
+      if (parameter.isWalletExtensionApi()) {
+        serverBuilder.addService(new WalletExtensionApi());
       }
+    } else {
+      serverBuilder.addService(walletApi);
+    }
 
-      if (parameter.isSolidityNode()) {
-        serverBuilder = serverBuilder.addService(walletSolidityApi);
-        if (parameter.isWalletExtensionApi()) {
-          serverBuilder = serverBuilder.addService(new WalletExtensionApi());
-        }
-      } else {
-        serverBuilder = serverBuilder.addService(walletApi);
-      }
-
-      if (parameter.isNodeMetricsEnable()) {
-        serverBuilder = serverBuilder.addService(monitorApi);
-      }
-
-      // Set configs from config.conf or default value
-      serverBuilder
-          .maxConcurrentCallsPerConnection(parameter.getMaxConcurrentCallsPerConnection())
-          .flowControlWindow(parameter.getFlowControlWindow())
-          .maxConnectionIdle(parameter.getMaxConnectionIdleInMillis(), TimeUnit.MILLISECONDS)
-          .maxConnectionAge(parameter.getMaxConnectionAgeInMillis(), TimeUnit.MILLISECONDS)
-          .maxInboundMessageSize(parameter.getMaxMessageSize())
-          .maxHeaderListSize(parameter.getMaxHeaderListSize());
-
-      // add a rate limiter interceptor
-      serverBuilder.intercept(rateLimiterInterceptor);
-
-      // add api access interceptor
-      serverBuilder.intercept(apiAccessInterceptor);
-
-      // add lite fullnode query interceptor
-      serverBuilder.intercept(liteFnQueryGrpcInterceptor);
-
-      // add prometheus interceptor
-      if (parameter.isMetricsPrometheusEnable()) {
-        serverBuilder.intercept(prometheusInterceptor);
-      }
-
-      if (parameter.isRpcReflectionServiceEnable()) {
-        serverBuilder.addService(ProtoReflectionService.newInstance());
-      }
-
-      apiServer = serverBuilder.build();
-      rateLimiterInterceptor.init(apiServer);
-      super.start();
-    } catch (Exception e) {
-      logger.debug(e.getMessage(), e);
+    if (parameter.isNodeMetricsEnable()) {
+      serverBuilder.addService(monitorApi);
     }
   }
 
@@ -1830,6 +1768,13 @@ public class RpcApiService extends RpcService {
     }
 
     @Override
+    public void triggerSetCodeContract(SetCodeContract request,
+         StreamObserver<TransactionExtention> responseObserver) {
+      // todo
+      setCodeContract(request, responseObserver);
+    }
+
+    @Override
     public void estimateEnergy(TriggerSmartContract request,
         StreamObserver<EstimateEnergyMessage> responseObserver) {
       TransactionExtention.Builder trxExtBuilder = TransactionExtention.newBuilder();
@@ -1896,6 +1841,41 @@ public class RpcApiService extends RpcService {
             .setMessage(ByteString.copyFromUtf8(e.getClass() + " : " + e.getMessage()));
         trxExtBuilder.setResult(retBuilder);
         logger.warn("When run constant call in VM, have Runtime Exception: " + e.getMessage());
+      } catch (Exception e) {
+        retBuilder.setResult(false).setCode(response_code.OTHER_ERROR)
+            .setMessage(ByteString.copyFromUtf8(e.getClass() + " : " + e.getMessage()));
+        trxExtBuilder.setResult(retBuilder);
+        logger.warn(UNKNOWN_EXCEPTION_CAUGHT + e.getMessage(), e);
+      } finally {
+        responseObserver.onNext(trxExtBuilder.build());
+        responseObserver.onCompleted();
+      }
+    }
+
+    private void setCodeContract(SetCodeContract request,
+        StreamObserver<TransactionExtention> responseObserver) {
+      // todo
+      TransactionExtention.Builder trxExtBuilder = TransactionExtention.newBuilder();
+      Return.Builder retBuilder = Return.newBuilder();
+      try {
+        TransactionCapsule trxCap = createTransactionCapsule(request,
+            ContractType.SetCodeContract);
+        Transaction trx = wallet.setCodeContract(request, trxCap, trxExtBuilder, retBuilder);
+        trxExtBuilder.setTransaction(trx);
+        trxExtBuilder.setTxid(trxCap.getTransactionId().getByteString());
+        retBuilder.setResult(true).setCode(response_code.SUCCESS);
+        trxExtBuilder.setResult(retBuilder);
+      } catch (ContractValidateException | VMIllegalException e) {
+        retBuilder.setResult(false).setCode(response_code.CONTRACT_VALIDATE_ERROR)
+            .setMessage(ByteString.copyFromUtf8(Wallet
+                .CONTRACT_VALIDATE_ERROR + e.getMessage()));
+        trxExtBuilder.setResult(retBuilder);
+        logger.warn(CONTRACT_VALIDATE_EXCEPTION, e.getMessage());
+      } catch (RuntimeException e) {
+        retBuilder.setResult(false).setCode(response_code.CONTRACT_EXE_ERROR)
+            .setMessage(ByteString.copyFromUtf8(e.getClass() + " : " + e.getMessage()));
+        trxExtBuilder.setResult(retBuilder);
+        logger.warn("When run set code call in VM, have Runtime Exception: " + e.getMessage());
       } catch (Exception e) {
         retBuilder.setResult(false).setCode(response_code.OTHER_ERROR)
             .setMessage(ByteString.copyFromUtf8(e.getClass() + " : " + e.getMessage()));

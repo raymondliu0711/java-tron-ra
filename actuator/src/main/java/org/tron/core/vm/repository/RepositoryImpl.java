@@ -1,9 +1,12 @@
 package org.tron.core.vm.repository;
 
-import static java.lang.Long.max;
+import static org.tron.common.math.Maths.addExact;
+import static org.tron.common.math.Maths.max;
+import static org.tron.common.math.Maths.round;
 import static org.tron.core.config.Parameter.ChainConstant.BLOCK_PRODUCED_INTERVAL;
 import static org.tron.core.config.Parameter.ChainConstant.TRX_PRECISION;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.protobuf.ByteString;
 import java.util.HashMap;
 import java.util.Optional;
@@ -136,6 +139,7 @@ public class RepositoryImpl implements Repository {
   private final HashMap<Key, Value<Votes>> votesCache = new HashMap<>();
   private final HashMap<Key, Value<byte[]>> delegationCache = new HashMap<>();
   private final HashMap<Key, Value<DelegatedResourceAccountIndex>> delegatedResourceAccountIndexCache = new HashMap<>();
+  private final HashBasedTable<Key, Key, Value<byte[]>> transientStorage = HashBasedTable.create();
   private final HashMap<Key, Value<AccountSetCodeAuthorization>> accountSetCodeAuthorizationCache = new HashMap<>();
 
   public static void removeLruCache(byte[] address) {
@@ -192,7 +196,7 @@ public class RepositoryImpl implements Repository {
 
     long newEnergyUsage = recover(energyUsage, latestConsumeTime, now, windowSize);
 
-    return max(energyLimit - newEnergyUsage, 0); // us
+    return max(energyLimit - newEnergyUsage, 0, VMConfig.disableJavaLangMath()); // us
   }
 
   @Override
@@ -449,6 +453,27 @@ public class RepositoryImpl implements Repository {
     return delegatedResourceAccountIndexCapsule;
   }
 
+  public byte[] getTransientStorageValue(byte[] address, byte[] key) {
+    Key cacheAddress = new Key(address);
+    Key cacheKey = new Key(key);
+    if (transientStorage.contains(cacheAddress, cacheKey)) {
+      return transientStorage.get(cacheAddress, cacheKey).getValue();
+    }
+
+    byte[] value;
+    if (parent != null) {
+      value = parent.getTransientStorageValue(address, key);
+    } else {
+      value = null;
+    }
+
+    if (value != null) {
+      transientStorage.put(cacheAddress, cacheKey, Value.create(value));
+    }
+
+    return value;
+  }
+
 
   @Override
   public void deleteContract(byte[] address) {
@@ -593,6 +618,11 @@ public class RepositoryImpl implements Repository {
   }
 
   @Override
+  public void updateTransientStorageValue(byte[] address, byte[] key, byte[] value) {
+    transientStorage.put(Key.create(address), Key.create(key), Value.create(value, Type.DIRTY));
+  }
+
+  @Override
   public void updateAccountSetCodeAuthorization(
       byte[] address, AccountSetCodeAuthorizationCapsule accountSetCodeAuthorizationCapsule) {
     accountSetCodeAuthorizationCache.put(
@@ -715,7 +745,7 @@ public class RepositoryImpl implements Repository {
           StringUtil.createReadableString(accountCapsule.createDbKey())
               + " insufficient balance");
     }
-    accountCapsule.setBalance(Math.addExact(balance, value));
+    accountCapsule.setBalance(addExact(balance, value, VMConfig.disableJavaLangMath()));
     Key key = Key.create(address);
     accountCache.put(key, Value.create(accountCapsule,
          accountCache.get(key).getType().addType(Type.DIRTY)));
@@ -743,6 +773,7 @@ public class RepositoryImpl implements Repository {
     commitVotesCache(repository);
     commitDelegationCache(repository);
     commitDelegatedResourceAccountIndexCache(repository);
+    commitTransientStorage(repository);
     commitAccountSetCodeAuthorizationCache(repository);
   }
 
@@ -800,6 +831,11 @@ public class RepositoryImpl implements Repository {
   @Override
   public void putDelegatedResourceAccountIndex(Key key, Value value) {
     delegatedResourceAccountIndexCache.put(key, value);
+  }
+
+  @Override
+  public void putTransientStorageValue(Key address, Key key, Value value) {
+    transientStorage.put(address, key, value);
   }
 
   @Override
@@ -881,7 +917,7 @@ public class RepositoryImpl implements Repository {
       if (lastTime + windowSize > now) {
         long delta = now - lastTime;
         double decay = (windowSize - delta) / (double) windowSize;
-        averageLastUsage = Math.round(averageLastUsage * decay);
+        averageLastUsage = round(averageLastUsage * decay, VMConfig.disableJavaLangMath());
       } else {
         averageLastUsage = 0;
       }
@@ -1051,6 +1087,17 @@ public class RepositoryImpl implements Repository {
         }
       }
     }));
+  }
+
+  public void commitTransientStorage(Repository deposit) {
+    if (deposit != null) {
+      transientStorage.cellSet().forEach(cell -> {
+        if (cell.getValue().getType().isDirty() || cell.getValue().getType().isCreate()) {
+          deposit.putTransientStorageValue(
+              cell.getRowKey(), cell.getColumnKey(), cell.getValue());
+        }
+      });
+    }
   }
 
   private void commitAccountSetCodeAuthorizationCache(Repository deposit) {

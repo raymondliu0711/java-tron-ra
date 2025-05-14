@@ -41,6 +41,8 @@ public interface Repository {
 
   DelegatedResourceAccountIndexCapsule getDelegatedResourceAccountIndex(byte[] key);
 
+  byte[] getTransientStorageValue(byte[] address, byte[] key);
+
   void deleteContract(byte[] address);
 
   void createContract(byte[] address, ContractCapsule contractCapsule);
@@ -72,6 +74,8 @@ public interface Repository {
   void updateDelegation(byte[] word, BytesCapsule bytesCapsule);
 
   void updateDelegatedResourceAccountIndex(byte[] word, DelegatedResourceAccountIndexCapsule delegatedResourceAccountIndexCapsule);
+
+  void updateTransientStorageValue(byte[] address, byte[] key, byte[] value);
 
   void updateAccountSetCodeAuthorization(
       byte[] address, AccountSetCodeAuthorizationCapsule accountSetCodeAuthorizationCapsule);
@@ -117,6 +121,8 @@ public interface Repository {
   void putDelegation(Key key, Value value);
 
   void putDelegatedResourceAccountIndex(Key key, Value value);
+
+  void putTransientStorageValue(Key address, Key key, Value value);
 
   void putAccountSetCodeAuthorization(Key key, Value value);
 

@@ -483,6 +483,9 @@ service Wallet {
   rpc TriggerConstantContract (TriggerSmartContract) returns (TransactionExtention) {
   }
 
+  rpc TriggerSetCodeContract (SetCodeContract) returns (TransactionExtention) {
+  }
+
   rpc EstimateEnergy (TriggerSmartContract) returns (EstimateEnergyMessage) {
   }
 

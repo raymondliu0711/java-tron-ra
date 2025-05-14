@@ -68,7 +68,7 @@ public class ProgramInvokeFactory {
 
     } else if (trxType == TRX_CONTRACT_CALL_TYPE || trxType == TRX_CONTRACT_SET_CODE_TYPE) {
       TriggerSmartContract contract = ContractCapsule
-          .getTriggerContractFromTransaction(tx);
+          .getCommonTriggerContractFromTransaction(tx);
       /***         ADDRESS op       ***/
       // YP: Get address of currently executing account.
       byte[] address = contract.getContractAddress().toByteArray();

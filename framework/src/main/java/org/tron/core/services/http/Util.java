@@ -453,20 +453,20 @@ public class Util {
     return getJsonLongValue(jsonObject, key, false);
   }
 
-  public static JSONArray getJsonArray(JSONObject jsonObject, String key, boolean required) {
-    JSONArray array = jsonObject.getJSONArray(key);
-    if (required && (array == null || array.isEmpty())) {
-      throw new InvalidParameterException("key [" + key + "] does not exist");
-    }
-    return (array == null) ? new JSONArray() : array;
-  }
-
   public static long getJsonLongValue(JSONObject jsonObject, String key, boolean required) {
     BigDecimal bigDecimal = jsonObject.getBigDecimal(key);
     if (required && bigDecimal == null) {
       throw new InvalidParameterException("key [" + key + "] does not exist");
     }
     return (bigDecimal == null) ? 0L : bigDecimal.longValueExact();
+  }
+
+  public static JSONArray getJsonArray(JSONObject jsonObject, String key, boolean required) {
+    JSONArray array = jsonObject.getJSONArray(key);
+    if (required && (array == null || array.isEmpty())) {
+      throw new InvalidParameterException("key [" + key + "] does not exist");
+    }
+    return (array == null) ? new JSONArray() : array;
   }
 
   public static String getMemo(byte[] memo) {
