@@ -42,6 +42,7 @@ import org.tron.core.ChainBaseManager;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.AccountSetCodeAuthorizationCapsule;
 import org.tron.core.capsule.BlockCapsule;
+import org.tron.core.capsule.CodeCapsule;
 import org.tron.core.capsule.ContractCapsule;
 import org.tron.core.capsule.ReceiptCapsule;
 import org.tron.core.capsule.TransactionCapsule;
@@ -170,7 +171,7 @@ public class VMActuator implements Actuator2 {
     switch (contractType.getNumber()) {
       case ContractType.TriggerSmartContract_VALUE:
         trxType = TrxType.TRX_CONTRACT_CALL_TYPE;
-        call();
+        call(0);
         break;
       case ContractType.CreateSmartContract_VALUE:
         trxType = TrxType.TRX_CONTRACT_CREATION_TYPE;
@@ -193,7 +194,6 @@ public class VMActuator implements Actuator2 {
     }
 
     ProgramResult result = context.getProgramResult();
-    long preEnergySpent = result.getEnergyUsed();
     try {
       if (program != null) {
         if (null != blockCap && blockCap.generatedByMyself && blockCap.hasWitnessSignature()
@@ -217,8 +217,6 @@ public class VMActuator implements Actuator2 {
           // So when allowFairEnergyAdjustment is on, the CPU time limit will be checked at the end of tx execution.
           program.checkCPUTimeLimit(Op.getNameOf(program.getLastOp()) + "(TX_LAST_OP)");
         }
-
-        result.spendEnergy(preEnergySpent);
 
         if (TrxType.TRX_CONTRACT_CREATION_TYPE == trxType && !result.isRevert()) {
           byte[] code = program.getResult().getHReturn();
@@ -470,7 +468,7 @@ public class VMActuator implements Actuator2 {
    * **
    */
 
-  private void call()
+  private void call(long energyUsed)
       throws ContractValidateException {
 
     if (!rootRepository.getDynamicPropertiesStore().supportVM()) {
@@ -558,6 +556,9 @@ public class VMActuator implements Actuator2 {
       }
       byte[] txId = TransactionUtil.getTransactionId(trx).getBytes();
       this.program.setRootTransactionId(txId);
+      if (energyUsed > 0) {
+        this.program.spendEnergy(energyUsed, "PreEnergyUsed");
+      }
 
       if (enableEventListener && isCheckTransaction()) {
         logInfoTriggerParser = new LogInfoTriggerParser(blockCap.getNum(), blockCap.getTimeStamp(),
@@ -597,16 +598,39 @@ public class VMActuator implements Actuator2 {
       throw new ContractValidateException("SetCode transaction with empty auth list");
     }
 
+    // todo
+    byte[] callerAddress = contract.getOwnerAddress().toByteArray();
+    AccountCapsule caller = rootRepository.getAccount(callerAddress);
+    long energyLimit;
+    long feeLimit = trx.getRawData().getFeeLimit();
+    long callValue = contract.getCallValue();
+    if (isConstantCall) {
+      energyLimit = maxEnergyLimit;
+    } else {
+      if (StorageUtils.getEnergyLimitHardFork()) {
+        energyLimit = getAccountEnergyLimitWithFixRatio(caller, feeLimit, callValue);
+      } else {
+        energyLimit = getAccountEnergyLimitWithFloatRatio(caller, feeLimit, callValue);
+      }
+    }
+    long setCodeEnergyCost = EnergyCost.getNewAcctCall() * authsList.size();
+    if (setCodeEnergyCost > energyLimit) {
+      throw new Program.OutOfEnergyException(
+          "Not enough energy for setCode operation executing: totalEnergyLimit[%d],"
+              + " setCodeEnergy[%d]",
+          energyLimit, setCodeEnergyCost);
+    }
+    result.spendEnergy(setCodeEnergyCost);
+
     for (SetCodeAuthorization setCodeAuthorization : authsList) {
       applyAuthorization(setCodeAuthorization, result);
     }
 
-    call();
+    call(setCodeEnergyCost);
   }
 
   private void applyAuthorization(
       SetCodeAuthorization setCodeAuthorization, ProgramResult result) {
-    result.spendEnergy(EnergyCost.getNewAcctCall());
     byte[] authority;
     try {
       authority = validateAuthorization(setCodeAuthorization);
@@ -616,7 +640,9 @@ public class VMActuator implements Actuator2 {
 
     AccountCapsule authorityAccount = rootRepository.getAccount(authority);
     if (authorityAccount == null) {
-      rootRepository.createAccount(authority, Protocol.AccountType.Normal);
+      AccountCapsule account = new AccountCapsule(ByteString.copyFrom(authority),
+          Protocol.AccountType.Normal);
+      ChainBaseManager.getInstance().getAccountStore().put(authority, account);
     } else {
       result.refundEnergy(EnergyCost.getNewAcctCall() - EnergyCost.getTxAuthTuple());
     }
@@ -670,17 +696,19 @@ public class VMActuator implements Actuator2 {
   }
 
   private void addAuthorityNonce(byte[] authority) {
-    AccountSetCodeAuthorizationCapsule authCapsule
-        = rootRepository.getAccountSetCodeAuthorization(authority);
+    AccountSetCodeAuthorizationCapsule authCapsule =
+        ChainBaseManager.getInstance().getAccountSetCodeAuthorizationStore().get(authority);
     if (authCapsule == null) {
       authCapsule = new AccountSetCodeAuthorizationCapsule();
     }
     authCapsule.addNonce();
-    rootRepository.updateAccountSetCodeAuthorization(authority, authCapsule);
+    ChainBaseManager.getInstance()
+        .getAccountSetCodeAuthorizationStore().put(authority, authCapsule);
   }
 
   private void setCodeToAuthority(byte[] authority, byte[] codeAddress) {
-    ContractCapsule contractCapsule = rootRepository.getContract(authority);
+    ContractCapsule contractCapsule
+        = ChainBaseManager.getInstance().getContractStore().get(authority);
     if (contractCapsule == null) {
       SmartContract.Builder builder = SmartContract.newBuilder();
       if (VMConfig.allowTvmCompatibleEvm()) {
@@ -691,13 +719,14 @@ public class VMActuator implements Actuator2 {
           .setOriginAddress(ByteString.copyFrom(authority));
       SmartContract newSmartContract = builder.build();
       contractCapsule = new ContractCapsule(newSmartContract);
-      rootRepository.createContract(authority, contractCapsule);
+      ChainBaseManager.getInstance().getContractStore().put(authority, contractCapsule);
     }
     if (isEmpty(codeAddress) || Arrays.equals(codeAddress, DataWord.ZERO.getData())) {
-      rootRepository.saveCode(authority, ByteUtil.EMPTY_BYTE_ARRAY);
+      ChainBaseManager.getInstance().getCodeStore().delete(authority);
     } else {
       byte[] delegatedCodeAddress = ByteUtil.merge(CODE_DELEGATION_PREFIX, codeAddress);
-      rootRepository.saveCode(authority, delegatedCodeAddress);
+      ChainBaseManager.getInstance().getCodeStore()
+          .put(authority, new CodeCapsule(delegatedCodeAddress));
     }
   }
 
