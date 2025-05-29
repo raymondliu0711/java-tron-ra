@@ -1,7 +1,5 @@
 package org.tron.core.actuator;
 
-import static java.lang.Math.max;
-import static java.lang.Math.min;
 import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 import static org.apache.commons.lang3.ArrayUtils.getLength;
 import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
@@ -24,7 +22,6 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.util.encoders.Hex;
-import org.checkerframework.checker.units.qual.C;
 import org.tron.common.crypto.SignUtils;
 import org.tron.common.logsfilter.trigger.ContractTrigger;
 import org.tron.common.parameter.CommonParameter;
@@ -468,7 +465,7 @@ public class VMActuator implements Actuator2 {
    * **
    */
 
-  private void call(long energyUsed)
+  private void call(long ownerEnergyUsed)
       throws ContractValidateException {
 
     if (!rootRepository.getDynamicPropertiesStore().supportVM()) {
@@ -488,7 +485,7 @@ public class VMActuator implements Actuator2 {
     byte[] contractAddress = contract.getContractAddress().toByteArray();
 
     ContractCapsule deployedContract = rootRepository.getContract(contractAddress);
-    if (trxType == TrxType.TRX_CONTRACT_CALL_TYPE && null == deployedContract) {
+    if (null == deployedContract) {
       logger.info("No contract or not a smart contract");
       throw new ContractValidateException("No contract or not a smart contract");
     }
@@ -556,8 +553,8 @@ public class VMActuator implements Actuator2 {
       }
       byte[] txId = TransactionUtil.getTransactionId(trx).getBytes();
       this.program.setRootTransactionId(txId);
-      if (energyUsed > 0) {
-        this.program.spendEnergy(energyUsed, "PreEnergyUsed");
+      if (ownerEnergyUsed > 0) {
+        this.program.spendOwnerEnergy(ownerEnergyUsed, "PreEnergyUsed");
       }
 
       if (enableEventListener && isCheckTransaction()) {
@@ -598,7 +595,7 @@ public class VMActuator implements Actuator2 {
       throw new ContractValidateException("SetCode transaction with empty auth list");
     }
 
-    // todo
+    // spend owner energy
     byte[] callerAddress = contract.getOwnerAddress().toByteArray();
     AccountCapsule caller = rootRepository.getAccount(callerAddress);
     long energyLimit;
@@ -620,22 +617,26 @@ public class VMActuator implements Actuator2 {
               + " setCodeEnergy[%d]",
           energyLimit, setCodeEnergyCost);
     }
-    result.spendEnergy(setCodeEnergyCost);
+    result.spendOwnerEnergy(setCodeEnergyCost);
 
     for (SetCodeAuthorization setCodeAuthorization : authsList) {
-      applyAuthorization(setCodeAuthorization, result);
+      long refundEnergy = applyAuthorization(setCodeAuthorization);
+      if (refundEnergy > 0) {
+        result.refundOwnerEnergy(refundEnergy);
+        setCodeEnergyCost -= refundEnergy;
+      }
     }
 
     call(setCodeEnergyCost);
   }
 
-  private void applyAuthorization(
-      SetCodeAuthorization setCodeAuthorization, ProgramResult result) {
+  private long applyAuthorization(SetCodeAuthorization setCodeAuthorization) {
     byte[] authority;
+    long refundEnergy = 0;
     try {
       authority = validateAuthorization(setCodeAuthorization);
     } catch (ContractValidateException e) {
-      return;
+      return refundEnergy;
     }
 
     AccountCapsule authorityAccount = rootRepository.getAccount(authority);
@@ -644,13 +645,14 @@ public class VMActuator implements Actuator2 {
           Protocol.AccountType.Normal);
       ChainBaseManager.getInstance().getAccountStore().put(authority, account);
     } else {
-      result.refundEnergy(EnergyCost.getNewAcctCall() - EnergyCost.getTxAuthTuple());
+      refundEnergy = EnergyCost.getNewAcctCall() - EnergyCost.getTxAuthTuple();
     }
     // update nonce
     addAuthorityNonce(authority);
 
     // set code to authority
     setCodeToAuthority(authority, setCodeAuthorization.getAuth().getAddress().toByteArray());
+    return refundEnergy;
   }
 
   private byte[] validateAuthorization(

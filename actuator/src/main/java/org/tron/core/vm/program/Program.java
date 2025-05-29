@@ -1127,6 +1127,16 @@ public class Program {
     getResult().spendEnergy(energyValue);
   }
 
+  public void spendOwnerEnergy(long energyValue, String opName) {
+    if (getEnergylimitLeftLong() < energyValue) {
+      throw new OutOfEnergyException(
+          "Not enough energy for '%s' operation executing: curInvokeEnergyLimit[%d],"
+              + " curOpEnergy[%d], usedEnergy[%d]",
+          opName, invoke.getEnergyLimit(), energyValue, getResult().getEnergyUsed());
+    }
+    getResult().spendOwnerEnergy(energyValue);
+  }
+
   public void spendEnergyWithPenalty(long total, long penalty, String opName) {
     if (getEnergylimitLeftLong() < total) {
       throw new OutOfEnergyException(

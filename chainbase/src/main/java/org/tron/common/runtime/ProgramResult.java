@@ -22,6 +22,9 @@ import org.tron.protos.Protocol.Transaction.Result.contractResult;
 public class ProgramResult {
 
   private long energyUsed = 0;
+
+  @Getter
+  private long ownerEnergyUsed = 0;
   //private long futureRefund = 0;
 
   @Getter
@@ -66,6 +69,10 @@ public class ProgramResult {
     energyUsed += energy;
   }
 
+  public void spendOwnerEnergy(long energy) {
+    ownerEnergyUsed += energy;
+  }
+
   public void spendEnergyWithPenalty(long total, long penalty) {
     energyPenaltyTotal += penalty;
     energyUsed += total;
@@ -81,6 +88,10 @@ public class ProgramResult {
 
   public void refundEnergy(long energy) {
     energyUsed -= energy;
+  }
+
+  public void refundOwnerEnergy(long energy) {
+    ownerEnergyUsed -= energy;
   }
 
   public void addTotalPenalty(long penalty) {
@@ -125,7 +136,7 @@ public class ProgramResult {
   }
 
   public long getEnergyUsed() {
-    return energyUsed;
+    return energyUsed + ownerEnergyUsed;
   }
 
   public Set<DataWord> getDeleteAccounts() {

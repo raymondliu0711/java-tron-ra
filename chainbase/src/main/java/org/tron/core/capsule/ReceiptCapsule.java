@@ -179,6 +179,14 @@ public class ReceiptCapsule {
     this.receipt = this.receipt.toBuilder().setEnergyPenaltyTotal(penalty).build();
   }
 
+  public long getOwnerEnergyUsage() {
+    return this.receipt.getOwnerEnergyUsage();
+  }
+
+  public void setOwnerEnergyUsage(long energyUsage) {
+    this.receipt = this.receipt.toBuilder().setOwnerEnergyUsage(energyUsage).build();
+  }
+
   public long getNetUsage() {
     return this.receipt.getNetUsage();
   }
@@ -224,7 +232,9 @@ public class ReceiptCapsule {
       payEnergyBill(dynamicPropertiesStore, accountStore, forkController, caller,
           receipt.getEnergyUsageTotal(), receipt.getResult(), energyProcessor, now);
     } else {
-      long originUsage = multiplyExact(receipt.getEnergyUsageTotal(), percent, disableJavaLangMath)
+      long originUsage =
+          multiplyExact(receipt.getEnergyUsageTotal() - receipt.getOwnerEnergyUsage(), percent,
+          disableJavaLangMath)
           / 100;
       originUsage = getOriginUsage(dynamicPropertiesStore, origin, originEnergyLimit,
           energyProcessor,

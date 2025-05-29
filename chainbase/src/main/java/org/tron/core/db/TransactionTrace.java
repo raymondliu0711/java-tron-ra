@@ -136,7 +136,6 @@ public class TransactionTrace {
         eventPluginLoaded);
   }
 
-  // todo
   public void checkIsConstant() throws ContractValidateException, VMIllegalException {
     if (dynamicPropertiesStore.getAllowTvmConstantinople() == 1) {
       return;
@@ -174,6 +173,13 @@ public class TransactionTrace {
     receipt.setEnergyPenaltyTotal(energyPenalty);
   }
 
+  public void setOwnerEnergyUsage(long energyUsage) {
+    if (energyUsage < 0) {
+      energyUsage = 0L;
+    }
+    receipt.setOwnerEnergyUsage(energyUsage);
+  }
+
   //set net bill
   public void setNetBill(long netUsage, long netFee) {
     receipt.setNetUsage(netUsage);
@@ -196,6 +202,7 @@ public class TransactionTrace {
     runtime.execute(transactionContext);
     setBill(transactionContext.getProgramResult().getEnergyUsed());
     setPenalty(transactionContext.getProgramResult().getEnergyPenaltyTotal());
+    setOwnerEnergyUsage(transactionContext.getProgramResult().getOwnerEnergyUsed());
 
 //    if (TrxType.TRX_PRECOMPILED_TYPE != trxType) {
 //      if (contractResult.OUT_OF_TIME

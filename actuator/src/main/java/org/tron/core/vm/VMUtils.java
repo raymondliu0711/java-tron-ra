@@ -32,7 +32,7 @@ public final class VMUtils {
 
   private static final int BUF_SIZE = 4096;
 
-  public static final byte[] CODE_DELEGATION_PREFIX = Hex.decode("ef0100");
+  public static final byte[] CODE_DELEGATION_PREFIX = new byte[]{(byte) 0xef, 0x01, 0x00};
 
   private VMUtils() {
   }
