@@ -1,5 +1,7 @@
 package org.tron.core;
 
+import org.bouncycastle.util.encoders.Hex;
+
 public class Constant {
 
   //config for testnet, mainnet, beta
@@ -61,6 +63,13 @@ public class Constant {
   public static final int UNEXECUTEDDEFERREDTRANSACTION = 1;
   public static final int EXECUTINGDEFERREDTRANSACTION = 2;
 
+  // System contracts
+  // todo HISTORY_BLOCK_HASH_ADDRESS
+  public static final byte[] SYSTEM_ADDRESS =
+      Hex.decode("41fffffffffffffffffffffffffffffffffffffffe");
+  public static final byte[] HISTORY_BLOCK_HASH_ADDRESS =
+      Hex.decode("41866FB285C71d1BAeeEA9c015571FaBaBfC74BD1d");
+  public static final long HISTORY_SERVE_WINDOW = 8192;
 
   // Configuration items
   public static final String NET_TYPE = "net.type";
