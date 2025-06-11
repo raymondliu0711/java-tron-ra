@@ -1392,6 +1392,12 @@ public class Wallet {
         .setValue(dbManager.getDynamicPropertiesStore().getAllowPectra())
         .build());
 
+    long allowTip2935 = dbManager.getDynamicPropertiesStore().allowTip2935() ? 1 : 0;
+    builder.addChainParameter(Protocol.ChainParameters.ChainParameter.newBuilder()
+        .setKey("getAllowTip2935")
+        .setValue(allowTip2935)
+        .build());
+
     return builder.build();
   }
 

@@ -4,8 +4,6 @@ import static org.tron.common.math.Maths.floorDiv;
 import static org.tron.common.math.Maths.max;
 import static org.tron.common.math.Maths.min;
 import static org.tron.common.utils.Commons.adjustBalance;
-import static org.tron.core.Constant.HISTORY_BLOCK_HASH_ADDRESS;
-import static org.tron.core.Constant.HISTORY_SERVE_WINDOW;
 import static org.tron.core.Constant.SYSTEM_ADDRESS;
 import static org.tron.core.Constant.TRANSACTION_MAX_BYTE_SIZE;
 import static org.tron.core.exception.BadBlockException.TypeEnum.CALC_MERKLE_ROOT_FAILED;
@@ -72,14 +70,12 @@ import org.tron.common.logsfilter.trigger.ContractEventTrigger;
 import org.tron.common.logsfilter.trigger.ContractLogTrigger;
 import org.tron.common.logsfilter.trigger.ContractTrigger;
 import org.tron.common.logsfilter.trigger.Trigger;
-import org.tron.common.math.Maths;
 import org.tron.common.overlay.message.Message;
 import org.tron.common.parameter.CommonParameter;
 import org.tron.common.prometheus.MetricKeys;
 import org.tron.common.prometheus.MetricLabels;
 import org.tron.common.prometheus.Metrics;
 import org.tron.common.runtime.RuntimeImpl;
-import org.tron.common.runtime.vm.DataWord;
 import org.tron.common.utils.ByteArray;
 import org.tron.common.utils.JsonUtil;
 import org.tron.common.utils.Pair;
@@ -93,14 +89,13 @@ import org.tron.core.ChainBaseManager;
 import org.tron.core.Constant;
 import org.tron.core.Wallet;
 import org.tron.core.actuator.ActuatorCreator;
-import org.tron.core.actuator.VMActuator;
+import org.tron.core.actuator.SystemVMActuator;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.BlockBalanceTraceCapsule;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.BlockCapsule.BlockId;
 import org.tron.core.capsule.BytesCapsule;
 import org.tron.core.capsule.ContractCapsule;
-import org.tron.core.capsule.StorageRowCapsule;
 import org.tron.core.capsule.TransactionCapsule;
 import org.tron.core.capsule.TransactionInfoCapsule;
 import org.tron.core.capsule.TransactionRetCapsule;
@@ -172,7 +167,6 @@ import org.tron.core.store.VotesStore;
 import org.tron.core.store.WitnessScheduleStore;
 import org.tron.core.store.WitnessStore;
 import org.tron.core.utils.TransactionRegister;
-import org.tron.core.vm.program.Storage;
 import org.tron.protos.Protocol.AccountType;
 import org.tron.protos.Protocol.Permission;
 import org.tron.protos.Protocol.Transaction;
@@ -1806,7 +1800,7 @@ public class Manager {
       }
     }
 
-    if (chainBaseManager.getDynamicPropertiesStore().allowPectra()) {
+    if (chainBaseManager.getDynamicPropertiesStore().allowTip2935()) {
       processParentBlockHash(block);
     }
 
@@ -1854,7 +1848,7 @@ public class Manager {
     boolean flag = chainBaseManager.getDynamicPropertiesStore().getNextMaintenanceTime()
         <= block.getTimeStamp();
     if (flag) {
-      proposalController.processProposals();
+      proposalController.processProposals(block);
     }
 
     if (!consensus.applyBlock(block)) {
@@ -1880,17 +1874,33 @@ public class Manager {
     }
   }
 
-  private void processParentBlockHash(BlockCapsule block) {
-    long parentBlockNumber = block.getNum() - 1;
-    byte[] parentBlockHash = block.getParentHash().getBytes();
-    long slot = parentBlockNumber % HISTORY_SERVE_WINDOW;
+  private void processParentBlockHash(BlockCapsule block)
+      throws ContractValidateException, ContractExeException {
+    byte[] contractAddress = chainBaseManager.getDynamicPropertiesStore().getTip2935Contract();
+    ContractCapsule contractCapsule = chainBaseManager.getContractStore().get(contractAddress);
+    if (contractCapsule == null) {
+      return;
+    }
 
-    Storage storage = new Storage(HISTORY_BLOCK_HASH_ADDRESS, chainBaseManager.getStorageRowStore());
-    ContractCapsule contractCapsule = chainBaseManager.getContractStore().get(HISTORY_BLOCK_HASH_ADDRESS);
-    storage.setContractVersion(contractCapsule.getContractVersion());
-    storage.generateAddrHash(contractCapsule.getTrxHash());
-    storage.put(new DataWord(slot), new DataWord(parentBlockHash));
-    storage.commit();
+    SmartContractOuterClass.TriggerSmartContract triggerSmartContract =
+        SmartContractOuterClass.TriggerSmartContract.newBuilder()
+            .setOwnerAddress(ByteString.copyFrom(SYSTEM_ADDRESS))
+            .setContractAddress(ByteString.copyFrom(contractAddress))
+            .setData(block.getParentHash().getByteString())
+            .build();
+    Contract contract = Contract.newBuilder()
+        .setParameter(Any.pack(triggerSmartContract))
+        .setType(Contract.ContractType.TriggerSmartContract)
+        .build();
+    Transaction.raw rawData =
+        Transaction.raw.newBuilder().addContract(contract).build();
+    Transaction transaction = Transaction.newBuilder().setRawData(rawData).build();
+    TransactionCapsule trxCap = new TransactionCapsule(transaction);
+    TransactionContext context =
+        new TransactionContext(block, trxCap, StoreFactory.getInstance(), false, false);
+    SystemVMActuator vmActuator = new SystemVMActuator();
+    vmActuator.validate(context);
+    vmActuator.execute(context);
   }
 
   private void payReward(BlockCapsule block) {

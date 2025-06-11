@@ -1,13 +1,33 @@
 package org.tron.core.consensus;
 
 import java.util.Map;
+
+import com.google.protobuf.Any;
+import com.google.protobuf.ByteString;
 import lombok.extern.slf4j.Slf4j;
+import org.tron.common.utils.StringUtil;
+import org.tron.common.utils.WalletUtil;
+import org.tron.core.actuator.SystemVMActuator;
+import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.ProposalCapsule;
+import org.tron.core.capsule.TransactionCapsule;
 import org.tron.core.config.Parameter.ForkBlockVersionEnum;
 import org.tron.core.db.Manager;
+import org.tron.core.db.TransactionContext;
+import org.tron.core.exception.ContractExeException;
+import org.tron.core.exception.ContractValidateException;
 import org.tron.core.store.DynamicPropertiesStore;
+import org.tron.core.store.StoreFactory;
 import org.tron.core.utils.ProposalUtil;
+import org.tron.protos.Protocol;
+import org.tron.protos.Protocol.Transaction;
 import org.tron.protos.Protocol.Transaction.Contract.ContractType;
+import org.tron.protos.contract.SmartContractOuterClass;
+
+import static org.tron.core.Constant.HISTORY_STORAGE_CODE;
+import static org.tron.core.Constant.HISTORY_STORAGE_NAME;
+import static org.tron.core.Constant.SYSTEM_ADDRESS;
+import static org.tron.protos.Protocol.Transaction.Result.contractResult.SUCCESS;
 
 /**
  * Notice:
@@ -18,7 +38,9 @@ import org.tron.protos.Protocol.Transaction.Contract.ContractType;
 @Slf4j
 public class ProposalService extends ProposalUtil {
 
-  public static boolean process(Manager manager, ProposalCapsule proposalCapsule) {
+  public static boolean process(
+      Manager manager, ProposalCapsule proposalCapsule, BlockCapsule blockCapsule)
+      throws ContractValidateException, ContractExeException {
     Map<Long, Long> map = proposalCapsule.getInstance().getParametersMap();
     boolean find = true;
     for (Map.Entry<Long, Long> entry : map.entrySet()) {
@@ -386,6 +408,45 @@ public class ProposalService extends ProposalUtil {
         }
         case ALLOW_PECTRA: {
           manager.getDynamicPropertiesStore().saveAllowPectra(entry.getValue());
+          break;
+        }
+        case ALLOW_TIP_2935: {
+          if (entry.getValue() > 0) {
+            SmartContractOuterClass.SmartContract smartContract =
+                SmartContractOuterClass.SmartContract.newBuilder()
+                    .setOriginAddress(ByteString.copyFrom(SYSTEM_ADDRESS))
+                    .setBytecode(ByteString.copyFrom(HISTORY_STORAGE_CODE))
+                    .setName(HISTORY_STORAGE_NAME)
+                    .setConsumeUserResourcePercent(100)
+                    .setOriginEnergyLimit(1)
+                    .build();
+            SmartContractOuterClass.CreateSmartContract createSmartContract =
+                SmartContractOuterClass.CreateSmartContract.newBuilder()
+                    .setOwnerAddress(ByteString.copyFrom(SYSTEM_ADDRESS))
+                    .setNewContract(smartContract)
+                    .build();
+            Protocol.Transaction.Contract contract =
+                Protocol.Transaction.Contract.newBuilder()
+                    .setParameter(Any.pack(createSmartContract))
+                    .setType(ContractType.CreateSmartContract)
+                    .build();
+            Protocol.Transaction.raw rawData =
+                Protocol.Transaction.raw.newBuilder().addContract(contract).build();
+            Transaction transaction = Transaction.newBuilder().setRawData(rawData).build();
+            TransactionCapsule trxCap = new TransactionCapsule(transaction);
+            TransactionContext context = new TransactionContext(
+                blockCapsule, trxCap, StoreFactory.getInstance(), false, false);
+            SystemVMActuator vmActuator = new SystemVMActuator();
+
+            vmActuator.validate(context);
+            vmActuator.execute(context);
+            if (context.getProgramResult().getResultCode() == SUCCESS) {
+              byte[] contractAddress = WalletUtil.generateContractAddress(transaction);
+              manager.getDynamicPropertiesStore().saveTip2935Contract(contractAddress);
+            }
+          } else {
+            manager.getDynamicPropertiesStore().saveTip2935Contract(null);
+          }
           break;
         }
         default:

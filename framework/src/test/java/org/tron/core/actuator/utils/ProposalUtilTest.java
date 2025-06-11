@@ -21,6 +21,7 @@ import org.tron.core.config.Parameter;
 import org.tron.core.config.Parameter.ForkBlockVersionEnum;
 import org.tron.core.config.args.Args;
 import org.tron.core.consensus.ProposalService;
+import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.core.store.DynamicPropertiesStore;
 import org.tron.core.utils.ProposalUtil;
@@ -71,7 +72,7 @@ public class ProposalUtilTest extends BaseTest {
   }
 
   @Test
-  public void validateCheck() {
+  public void validateCheck() throws ContractValidateException, ContractExeException {
     long invalidValue = -1;
 
     try {
@@ -420,7 +421,7 @@ public class ProposalUtilTest extends BaseTest {
     Protocol.Proposal proposal = Protocol.Proposal.newBuilder().putParameters(
         ProposalType.ALLOW_STRICT_MATH.getCode(), 1).build();
     ProposalCapsule proposalCapsule = new ProposalCapsule(proposal);
-    ProposalService.process(dbManager, proposalCapsule);
+    ProposalService.process(dbManager, proposalCapsule, null);
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
           ProposalType.ALLOW_STRICT_MATH.getCode(), 1);
@@ -446,7 +447,8 @@ public class ProposalUtilTest extends BaseTest {
     forkUtils.reset();
   }
 
-  private void testEnergyAdjustmentProposal() {
+  private void testEnergyAdjustmentProposal()
+      throws ContractValidateException, ContractExeException {
     // Should fail because cannot pass the fork controller check
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,
@@ -495,7 +497,7 @@ public class ProposalUtilTest extends BaseTest {
     Map<Long, Long> parameter = new HashMap<>();
     parameter.put(81L, 1L);
     proposalCapsule.setParameters(parameter);
-    ProposalService.process(dbManager, proposalCapsule);
+    ProposalService.process(dbManager, proposalCapsule, null);
 
     try {
       ProposalUtil.validator(dynamicPropertiesStore, forkUtils,

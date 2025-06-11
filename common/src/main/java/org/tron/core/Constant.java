@@ -67,9 +67,12 @@ public class Constant {
   // todo HISTORY_BLOCK_HASH_ADDRESS
   public static final byte[] SYSTEM_ADDRESS =
       Hex.decode("41fffffffffffffffffffffffffffffffffffffffe");
-  public static final byte[] HISTORY_BLOCK_HASH_ADDRESS =
-      Hex.decode("41866FB285C71d1BAeeEA9c015571FaBaBfC74BD1d");
-  public static final long HISTORY_SERVE_WINDOW = 8192;
+  public static final byte[] HISTORY_STORAGE_CODE =
+      Hex.decode("60538060095f395ff33373fffffffffffffffffffffff"
+          + "ffffffffffffffffe14604657602036036042575f35600143038111"
+          + "604257611fff81430311604257611fff9006545f5260205ff35b5f5"
+          + "ffd5b5f35611fff60014303065500");
+  public static final String HISTORY_STORAGE_NAME = "HistoryBlockHash";
 
   // Configuration items
   public static final String NET_TYPE = "net.type";
@@ -416,4 +419,6 @@ public class Constant {
   public static final String COMMITTEE_ALLOW_TVM_BLOB = "committee.allowTvmBlob";
 
   public static final String COMMITTEE_ALLOW_PECTRA = "committee.allowPectra";
+
+  public static final String COMMITTEE_TIP_2935_CONTRACT = "committee.tip2935Contract";
 }

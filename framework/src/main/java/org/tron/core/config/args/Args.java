@@ -42,6 +42,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.util.encoders.Hex;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.tron.common.args.Account;
@@ -248,6 +249,7 @@ public class Args extends CommonParameter {
     PARAMETER.allowTvmCancun = 0;
     PARAMETER.allowTvmBlob = 0;
     PARAMETER.allowPectra = 0;
+    PARAMETER.tip2935Contract = null;
   }
 
   /**
@@ -1294,6 +1296,11 @@ public class Args extends CommonParameter {
     PARAMETER.allowPectra =
         config.hasPath(Constant.COMMITTEE_ALLOW_PECTRA) ? config
             .getInt(Constant.COMMITTEE_ALLOW_PECTRA) : 0;
+
+    PARAMETER.tip2935Contract =
+        config.hasPath(Constant.COMMITTEE_TIP_2935_CONTRACT)
+            ? Hex.decode(config.getString(Constant.COMMITTEE_TIP_2935_CONTRACT))
+            : null;
 
     logConfig();
   }

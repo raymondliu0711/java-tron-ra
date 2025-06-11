@@ -234,6 +234,8 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
 
   private static final byte[] ALLOW_PECTRA = "ALLOW_PECTRA".getBytes();
 
+  private static final byte[] ALLOW_TIP_2935 = "ALLOW_TIP_2935".getBytes();
+
   @Autowired
   private DynamicPropertiesStore(@Value("properties") String dbName) {
     super(dbName);
@@ -2961,6 +2963,20 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
 
   public boolean allowPectra() {
     return getAllowPectra() == 1L;
+  }
+
+  public byte[] getTip2935Contract() {
+    return Optional.ofNullable(getUnchecked(ALLOW_TIP_2935))
+        .map(BytesCapsule::getData)
+        .orElse(CommonParameter.getInstance().getTip2935Contract());
+  }
+
+  public void saveTip2935Contract(byte[] contractAddress) {
+    this.put(ALLOW_TIP_2935, new BytesCapsule(contractAddress));
+  }
+
+  public boolean allowTip2935() {
+    return getTip2935Contract() != null;
   }
 
   private static class DynamicResourceProperties {

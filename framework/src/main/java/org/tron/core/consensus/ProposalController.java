@@ -5,8 +5,11 @@ import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.ProposalCapsule;
 import org.tron.core.db.Manager;
+import org.tron.core.exception.ContractExeException;
+import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Protocol.Proposal.State;
 
 @Slf4j(topic = "witness")
@@ -23,7 +26,8 @@ public class ProposalController {
   }
 
 
-  public void processProposals() {
+  public void processProposals(BlockCapsule blockCapsule)
+      throws ContractValidateException, ContractExeException {
     long latestProposalNum = manager.getDynamicPropertiesStore().getLatestProposalNum();
     if (latestProposalNum == 0) {
       logger.info("latestProposalNum is 0, return");
@@ -60,7 +64,7 @@ public class ProposalController {
 
       long currentTime = manager.getDynamicPropertiesStore().getNextMaintenanceTime();
       if (proposalCapsule.hasExpired(currentTime)) {
-        processProposal(proposalCapsule);
+        processProposal(proposalCapsule, blockCapsule);
         proposalNum--;
         continue;
       }
@@ -71,7 +75,8 @@ public class ProposalController {
     logger.info("Processing proposals done, oldest proposal[{}]", proposalNum);
   }
 
-  public void processProposal(ProposalCapsule proposalCapsule) {
+  public void processProposal(ProposalCapsule proposalCapsule, BlockCapsule blockCapsule)
+      throws ContractValidateException, ContractExeException {
 
     List<ByteString> activeWitnesses = this.manager.getWitnessScheduleStore().getActiveWitnesses();
     if (proposalCapsule.hasMostApprovals(activeWitnesses)) {
@@ -80,7 +85,7 @@ public class ProposalController {
               + "begin to set dynamic parameter:{}, "
               + "and set proposal state as APPROVED",
           proposalCapsule.getID(), proposalCapsule.getParameters());
-      setDynamicParameters(proposalCapsule);
+      setDynamicParameters(proposalCapsule, blockCapsule);
       proposalCapsule.setState(State.APPROVED);
       manager.getProposalStore().put(proposalCapsule.createDbKey(), proposalCapsule);
     } else {
@@ -94,8 +99,9 @@ public class ProposalController {
 
   }
 
-  public void setDynamicParameters(ProposalCapsule proposalCapsule) {
-    ProposalService.process(manager, proposalCapsule);
+  public void setDynamicParameters(ProposalCapsule proposalCapsule, BlockCapsule blockCapsule)
+      throws ContractValidateException, ContractExeException {
+    ProposalService.process(manager, proposalCapsule, blockCapsule);
   }
 
 }

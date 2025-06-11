@@ -854,6 +854,26 @@ public class ProposalUtil {
         }
         break;
       }
+      case ALLOW_TIP_2935: {
+        if (!forkController.pass(ForkBlockVersionEnum.VERSION_4_8_1)) {
+          throw new ContractValidateException(
+              "Bad chain parameter id [ALLOW_TIP_2935]");
+        }
+        if (dynamicPropertiesStore.allowTip2935()) {
+          throw new ContractValidateException(
+              "[ALLOW_TIP_2935] has been valid, no need to propose again");
+        }
+        if (value != 1) {
+          throw new ContractValidateException(
+              "This value[ALLOW_TIP_2935] is only allowed to be 1");
+        }
+        if (!dynamicPropertiesStore.supportVM()) {
+          throw new ContractValidateException(
+              "[ALLOW_CREATION_OF_CONTRACTS] proposal must be approved "
+                  + "before [ALLOW_TIP_2935] can be proposed");
+        }
+        break;
+      }
       default:
         break;
     }
@@ -937,7 +957,8 @@ public class ProposalUtil {
     ALLOW_STRICT_MATH(87), // 0, 1
     CONSENSUS_LOGIC_OPTIMIZATION(88), // 0, 1
     ALLOW_TVM_BLOB(89), // 0, 1
-    ALLOW_PECTRA(92); // 0, 1
+    ALLOW_PECTRA(92), // 0, 1
+    ALLOW_TIP_2935(93); // 0, 1
 
     private long code;
 

@@ -17,6 +17,8 @@ import org.tron.core.Constant;
 import org.tron.core.capsule.ProposalCapsule;
 import org.tron.core.config.args.Args;
 import org.tron.core.consensus.ProposalService;
+import org.tron.core.exception.ContractExeException;
+import org.tron.core.exception.ContractValidateException;
 import org.tron.core.utils.ProposalUtil.ProposalType;
 import org.tron.protos.Protocol.Proposal;
 
@@ -41,7 +43,7 @@ public class ProposalServiceTest extends BaseTest {
   }
 
   @Test
-  public void test() {
+  public void test() throws ContractValidateException, ContractExeException {
     Set<Long> set = new HashSet<>();
     for (ProposalType proposalType : ProposalType.values()) {
       Assert.assertTrue(set.add(proposalType.getCode()));
@@ -49,12 +51,12 @@ public class ProposalServiceTest extends BaseTest {
 
     Proposal proposal = Proposal.newBuilder().putParameters(1, 1).build();
     ProposalCapsule proposalCapsule = new ProposalCapsule(proposal);
-    boolean result = ProposalService.process(dbManager, proposalCapsule);
+    boolean result = ProposalService.process(dbManager, proposalCapsule, null);
     Assert.assertTrue(result);
     //
     proposal = Proposal.newBuilder().putParameters(1000, 1).build();
     proposalCapsule = new ProposalCapsule(proposal);
-    result = ProposalService.process(dbManager, proposalCapsule);
+    result = ProposalService.process(dbManager, proposalCapsule, null);
     Assert.assertFalse(result);
     //
     for (ProposalType proposalType : ProposalType.values()) {
@@ -64,19 +66,19 @@ public class ProposalServiceTest extends BaseTest {
         proposal = Proposal.newBuilder().putParameters(proposalType.getCode(), 1).build();
       }
       proposalCapsule = new ProposalCapsule(proposal);
-      result = ProposalService.process(dbManager, proposalCapsule);
+      result = ProposalService.process(dbManager, proposalCapsule, null);
       Assert.assertTrue(result);
     }
   }
 
   @Test
-  public void testUpdateEnergyFee() {
+  public void testUpdateEnergyFee() throws ContractValidateException, ContractExeException {
     String preHistory = dbManager.getDynamicPropertiesStore().getEnergyPriceHistory();
 
     long newPrice = 500;
     Proposal proposal = Proposal.newBuilder().putParameters(ENERGY_FEE.getCode(), newPrice).build();
     ProposalCapsule proposalCapsule = new ProposalCapsule(proposal);
-    boolean result = ProposalService.process(dbManager, proposalCapsule);
+    boolean result = ProposalService.process(dbManager, proposalCapsule, null);
     Assert.assertTrue(result);
 
     long currentPrice = dbManager.getDynamicPropertiesStore().getEnergyFee();
@@ -88,7 +90,7 @@ public class ProposalServiceTest extends BaseTest {
   }
 
   @Test
-  public void testUpdateTransactionFee() {
+  public void testUpdateTransactionFee() throws ContractValidateException, ContractExeException {
     String preHistory = dbManager.getDynamicPropertiesStore().getBandwidthPriceHistory();
 
     long newPrice = 1500;
@@ -96,7 +98,7 @@ public class ProposalServiceTest extends BaseTest {
         Proposal.newBuilder().putParameters(TRANSACTION_FEE.getCode(), newPrice).build();
     ProposalCapsule proposalCapsule = new ProposalCapsule(proposal);
     proposalCapsule.setExpirationTime(1627279200000L);
-    boolean result = ProposalService.process(dbManager, proposalCapsule);
+    boolean result = ProposalService.process(dbManager, proposalCapsule, null);
     Assert.assertTrue(result);
 
     long currentPrice = dbManager.getDynamicPropertiesStore().getTransactionFee();
@@ -108,7 +110,8 @@ public class ProposalServiceTest extends BaseTest {
   }
 
   @Test
-  public void testUpdateConsensusLogicOptimization() {
+  public void testUpdateConsensusLogicOptimization()
+      throws ContractValidateException, ContractExeException {
     long v = dbManager.getDynamicPropertiesStore().getConsensusLogicOptimization();
     Assert.assertEquals(v, 0);
     Assert.assertTrue(!dbManager.getDynamicPropertiesStore().allowConsensusLogicOptimization());
@@ -120,7 +123,7 @@ public class ProposalServiceTest extends BaseTest {
         Proposal.newBuilder().putParameters(CONSENSUS_LOGIC_OPTIMIZATION.getCode(), value).build();
     ProposalCapsule proposalCapsule = new ProposalCapsule(proposal);
     proposalCapsule.setExpirationTime(1627279200000L);
-    boolean result = ProposalService.process(dbManager, proposalCapsule);
+    boolean result = ProposalService.process(dbManager, proposalCapsule, null);
     Assert.assertTrue(result);
 
     v = dbManager.getDynamicPropertiesStore().getConsensusLogicOptimization();

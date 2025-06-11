@@ -17,6 +17,8 @@ import org.tron.core.capsule.ProposalCapsule;
 import org.tron.core.config.args.Args;
 import org.tron.core.consensus.ConsensusService;
 import org.tron.core.consensus.ProposalController;
+import org.tron.core.exception.ContractExeException;
+import org.tron.core.exception.ContractValidateException;
 import org.tron.core.store.DynamicPropertiesStore;
 import org.tron.protos.Protocol.Proposal;
 import org.tron.protos.Protocol.Proposal.State;
@@ -43,7 +45,7 @@ public class ProposalControllerTest extends BaseTest {
   }
 
   @Test
-  public void testSetDynamicParameters() {
+  public void testSetDynamicParameters() throws ContractValidateException, ContractExeException {
 
     ProposalCapsule proposalCapsule = new ProposalCapsule(
         Proposal.newBuilder().build());
@@ -57,7 +59,7 @@ public class ProposalControllerTest extends BaseTest {
     parameters.put(3L, transactionFeeDefault + 1);
     proposalCapsule.setParameters(parameters);
 
-    proposalController.setDynamicParameters(proposalCapsule);
+    proposalController.setDynamicParameters(proposalCapsule, null);
     Assert.assertEquals(accountUpgradeCostDefault + 1,
         dynamicPropertiesStore.getAccountUpgradeCost());
     Assert.assertEquals(createAccountFeeDefault + 1, dynamicPropertiesStore.getCreateAccountFee());
@@ -66,7 +68,7 @@ public class ProposalControllerTest extends BaseTest {
   }
 
   @Test
-  public void testProcessProposal() {
+  public void testProcessProposal() throws ContractValidateException, ContractExeException {
     ProposalCapsule proposalCapsule = new ProposalCapsule(
         Proposal.newBuilder().build());
     proposalCapsule.setState(State.PENDING);
@@ -75,7 +77,7 @@ public class ProposalControllerTest extends BaseTest {
     byte[] key = proposalCapsule.createDbKey();
     dbManager.getProposalStore().put(key, proposalCapsule);
 
-    proposalController.processProposal(proposalCapsule);
+    proposalController.processProposal(proposalCapsule, null);
 
     try {
       proposalCapsule = dbManager.getProposalStore().get(key);
@@ -90,7 +92,7 @@ public class ProposalControllerTest extends BaseTest {
       proposalCapsule.addApproval(ByteString.copyFrom(new byte[i]));
     }
 
-    proposalController.processProposal(proposalCapsule);
+    proposalController.processProposal(proposalCapsule, null);
 
     try {
       proposalCapsule = dbManager.getProposalStore().get(key);
@@ -112,7 +114,7 @@ public class ProposalControllerTest extends BaseTest {
     dbManager.getWitnessScheduleStore().saveActiveWitnesses(activeWitnesses);
     proposalCapsule.setState(State.PENDING);
     dbManager.getProposalStore().put(key, proposalCapsule);
-    proposalController.processProposal(proposalCapsule);
+    proposalController.processProposal(proposalCapsule, null);
 
     try {
       proposalCapsule = dbManager.getProposalStore().get(key);
@@ -124,7 +126,7 @@ public class ProposalControllerTest extends BaseTest {
 
 
   @Test
-  public void testProcessProposals() {
+  public void testProcessProposals() throws ContractValidateException, ContractExeException {
     ProposalCapsule proposalCapsule1 = new ProposalCapsule(
         Proposal.newBuilder().build());
     proposalCapsule1.setState(State.APPROVED);
@@ -161,7 +163,7 @@ public class ProposalControllerTest extends BaseTest {
     dbManager.getProposalStore().put(proposalCapsule4.createDbKey(), proposalCapsule4);
     dbManager.getProposalStore().put(proposalCapsule5.createDbKey(), proposalCapsule5);
 
-    proposalController.processProposals();
+    proposalController.processProposals(null);
 
     try {
       proposalCapsule3 = dbManager.getProposalStore().get(proposalCapsule3.createDbKey());
