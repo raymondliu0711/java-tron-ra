@@ -3,7 +3,6 @@ package org.tron.core.vm.program;
 import org.apache.commons.lang3.tuple.Pair;
 import org.tron.common.runtime.vm.DataWord;
 import org.tron.core.capsule.AccountCapsule;
-import org.tron.core.capsule.AccountSetCodeAuthorizationCapsule;
 import org.tron.core.capsule.AssetIssueCapsule;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.BytesCapsule;
@@ -110,11 +109,6 @@ public class ContractState implements Repository, ProgramListenerAware {
   @Override
   public ContractStateCapsule getContractState(byte[] address) {
     return repository.getContractState(address);
-  }
-
-  @Override
-  public AccountSetCodeAuthorizationCapsule getAccountSetCodeAuthorization(byte[] address) {
-    return repository.getAccountSetCodeAuthorization(address);
   }
 
   @Override
@@ -238,11 +232,6 @@ public class ContractState implements Repository, ProgramListenerAware {
   @Override
   public void putTransientStorageValue(Key address, Key key, Value value) {
     repository.putTransientStorageValue(address, key, value);
-  }
-
-  @Override
-  public void putAccountSetCodeAuthorization(Key key, Value value) {
-    repository.putAccountSetCodeAuthorization(key, value);
   }
 
   @Override
@@ -378,11 +367,6 @@ public class ContractState implements Repository, ProgramListenerAware {
   @Override
   public void updateTransientStorageValue(byte[] address, byte[] key, byte[] value) {
     repository.updateTransientStorageValue(address, key, value);
-  }
-
-  @Override
-  public void updateAccountSetCodeAuthorization(byte[] address, AccountSetCodeAuthorizationCapsule accountSetCodeAuthorizationCapsule) {
-    repository.updateAccountSetCodeAuthorization(address, accountSetCodeAuthorizationCapsule);
   }
 
   @Override

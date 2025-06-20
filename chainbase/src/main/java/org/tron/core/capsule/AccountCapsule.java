@@ -1476,17 +1476,4 @@ public class AccountCapsule implements ProtoCapsule<Account>, Comparable<Account
       setLatestConsumeTimeForEnergy(time);
     }
   }
-
-  public ByteString getCode() {
-    return this.getInstance().getCode();
-  }
-
-  public void setCode(byte[] code) {
-    this.account = this.account.toBuilder().setCode(ByteString.copyFrom(code)).build();
-  }
-
-  public void clearCode() {
-    this.account = this.account.toBuilder().clearCode().build();
-  }
-
 }

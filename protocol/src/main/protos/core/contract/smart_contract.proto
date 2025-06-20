@@ -78,6 +78,7 @@ message TriggerSmartContract {
   bytes data = 4;
   int64 call_token_value = 5;
   int64 token_id = 6;
+  repeated SetCodeAuthorization auths = 7;
 }
 
 message ClearABIContract {
@@ -118,7 +119,8 @@ message SetCodeAuthorization {
     int64 chain_id = 1;
     bytes address = 2;
     int64 nonce = 3;
+    bytes authority = 4;
   }
   Authorization auth = 1;
-  bytes signature = 2;
+  repeated bytes signature = 2;
 }

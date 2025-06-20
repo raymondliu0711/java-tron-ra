@@ -19,21 +19,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.tron.core.capsule.AccountSetCodeAuthorizationCapsule;
+import org.tron.core.capsule.AccountStateCapsule;
 import org.tron.core.db.TronStoreWithRevoking;
 
 @Slf4j(topic = "DB")
 @Component
-public class AccountSetCodeAuthorizationStore
-    extends TronStoreWithRevoking<AccountSetCodeAuthorizationCapsule> {
+public class AccountStateStore extends TronStoreWithRevoking<AccountStateCapsule> {
 
   @Autowired
-  private AccountSetCodeAuthorizationStore(@Value("account-set-code-authorization") String dbName) {
+  private AccountStateStore(@Value("account-state") String dbName) {
     super(dbName);
   }
 
   @Override
-  public AccountSetCodeAuthorizationCapsule get(byte[] key) {
+  public AccountStateCapsule get(byte[] key) {
     return getUnchecked(key);
   }
 }

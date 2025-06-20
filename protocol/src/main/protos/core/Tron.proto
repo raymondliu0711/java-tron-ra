@@ -894,6 +894,6 @@ message SRL {
   repeated bytes srAddress = 1;
 }
 
-message AccountSetCodeAuthorization {
+message AccountState {
   int64 nonce = 1;
 }

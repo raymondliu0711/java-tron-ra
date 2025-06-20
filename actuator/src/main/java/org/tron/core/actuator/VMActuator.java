@@ -37,7 +37,7 @@ import org.tron.common.utils.StringUtil;
 import org.tron.common.utils.WalletUtil;
 import org.tron.core.ChainBaseManager;
 import org.tron.core.capsule.AccountCapsule;
-import org.tron.core.capsule.AccountSetCodeAuthorizationCapsule;
+import org.tron.core.capsule.AccountStateCapsule;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.CodeCapsule;
 import org.tron.core.capsule.ContractCapsule;
@@ -47,6 +47,8 @@ import org.tron.core.db.EnergyProcessor;
 import org.tron.core.db.TransactionContext;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
+import org.tron.core.exception.PermissionException;
+import org.tron.core.exception.SignatureFormatException;
 import org.tron.core.utils.TransactionUtil;
 import org.tron.core.vm.EnergyCost;
 import org.tron.core.vm.LogInfoTriggerParser;
@@ -530,6 +532,7 @@ public class VMActuator implements Actuator2 {
       } else {
         AccountCapsule creator = rootRepository
             .getAccount(deployedContract.getInstance().getOriginAddress().toByteArray());
+        // todo - caller usage
         energyLimit = getTotalEnergyLimit(creator, caller, contract, feeLimit, callValue);
       }
 
@@ -611,6 +614,10 @@ public class VMActuator implements Actuator2 {
       }
     }
     long setCodeEnergyCost = EnergyCost.getNewAcctCall() * authsList.size();
+    // todo Actuator
+    // 保证两边同时上链
+    // 1. validate: setCode & call
+    // 2. exe: setCode & call
     if (setCodeEnergyCost > energyLimit) {
       throw new Program.OutOfEnergyException(
           "Not enough energy for setCode operation executing: totalEnergyLimit[%d],"
@@ -631,14 +638,14 @@ public class VMActuator implements Actuator2 {
   }
 
   private long applyAuthorization(SetCodeAuthorization setCodeAuthorization) {
-    byte[] authority;
     long refundEnergy = 0;
     try {
-      authority = validateAuthorization(setCodeAuthorization);
+      validateAuthorization(setCodeAuthorization);
     } catch (ContractValidateException e) {
       return refundEnergy;
     }
 
+    byte[] authority = setCodeAuthorization.getAuth().getAuthority().toByteArray();
     AccountCapsule authorityAccount = rootRepository.getAccount(authority);
     if (authorityAccount == null) {
       AccountCapsule account = new AccountCapsule(ByteString.copyFrom(authority),
@@ -655,57 +662,100 @@ public class VMActuator implements Actuator2 {
     return refundEnergy;
   }
 
-  private byte[] validateAuthorization(
+  private void validateAuthorization(
       SetCodeAuthorization setCodeAuthorization) throws ContractValidateException {
+    long chainId = setCodeAuthorization.getAuth().getChainId();
+    if (chainId != 0 && chainId != 1) {
+      throw new ContractValidateException("SetCode authorization chain ID mismatch");
+    }
+
     if (setCodeAuthorization.getAuth().getNonce() + 1 < setCodeAuthorization.getAuth().getNonce()) {
       throw new ContractValidateException("SetCode authorization's nonce > 64 bit");
     }
 
-    byte[] authority = getSetCodeAuthority(setCodeAuthorization);
+    if (setCodeAuthorization.getAuth().getAddress().toByteArray().length != 21) {
+      throw new ContractValidateException("SetCode authorization address length invalid");
+    }
+
+    validatePubSignature(setCodeAuthorization);
+
+    byte[] authority = setCodeAuthorization.getAuth().getAuthority().toByteArray();
     // check account type
     AccountCapsule authorityAccount = rootRepository.getAccount(authority);
     if (authorityAccount != null && authorityAccount.getType() == Protocol.AccountType.Contract) {
       throw new ContractValidateException("SetCode authorization's destination is a contract");
     }
 
-    AccountSetCodeAuthorizationCapsule authCapsule
-        = rootRepository.getAccountSetCodeAuthorization(authority);
-    if (authCapsule != null && authCapsule.getNonce() != setCodeAuthorization.getAuth().getNonce()) {
+    AccountStateCapsule authCapsule =
+        ChainBaseManager.getInstance().getAccountStateStore().get(authority);
+    if (authCapsule == null) {
+      authCapsule = new AccountStateCapsule();
+    }
+    if (authCapsule.getNonce() != setCodeAuthorization.getAuth().getNonce()) {
       throw new ContractValidateException(
           "SetCode authorization's nonce does not match current account nonce");
     }
-
-    return authority;
   }
 
-  private byte[] getSetCodeAuthority(
-      SetCodeAuthorization setCodeAuthorization) throws ContractValidateException {
-    ByteString sig = setCodeAuthorization.getSignature();
-    if (sig.size() < 65) {
-      throw new ContractValidateException("SetCode transaction invalid signatures");
+  private void validatePubSignature(SetCodeAuthorization setCodeAuthorization)
+      throws ContractValidateException {
+    if (setCodeAuthorization.getSignatureCount() <= 0) {
+      throw new ContractValidateException("SetCode authorization miss sig");
+    }
+    if (setCodeAuthorization.getSignatureCount()
+        > rootRepository.getDynamicPropertiesStore().getTotalSignNum()) {
+      throw new ContractValidateException("SetCode authorization too many signatures");
     }
 
-    String base64 = TransactionCapsule.getBase64FromByteString(sig);
-    byte[] hash = Sha256Hash.of(
-        CommonParameter.getInstance().isECKeyCryptoEngine(),
+    byte[] hash = Sha256Hash.of(CommonParameter.getInstance().isECKeyCryptoEngine(),
         setCodeAuthorization.getAuth().toByteArray()).getBytes();
+
     try {
-      return SignUtils
-          .signatureToAddress(hash, base64, CommonParameter.getInstance().isECKeyCryptoEngine());
-    } catch (SignatureException e) {
+      if (!validateSignature(setCodeAuthorization, hash)) {
+        throw new ContractValidateException("SetCode authorization sig error");
+      }
+    } catch (ContractValidateException e) {
       throw new ContractValidateException(e.getMessage());
     }
   }
 
+  private boolean validateSignature(
+      SetCodeAuthorization setCodeAuthorization, byte[] hash) throws ContractValidateException {
+    byte[] owner = setCodeAuthorization.getAuth().getAuthority().toByteArray();
+
+    AccountCapsule account = rootRepository.getAccount(owner);
+    Protocol.Permission permission;
+    if (account == null) {
+      permission = AccountCapsule.getDefaultPermission(ByteString.copyFrom(owner));
+    } else {
+      permission = account.getPermissionById(0);
+    }
+    if (permission == null) {
+      throw new ContractValidateException("SetCode authorization permission isn't exit");
+    }
+
+    long weight;
+    try {
+      weight = TransactionCapsule.checkWeight(
+          permission, setCodeAuthorization.getSignatureList(), hash, null);
+      if (weight >= permission.getThreshold()) {
+        return true;
+      }
+    } catch (SignatureException | PermissionException | SignatureFormatException e) {
+      return false;
+    }
+    return false;
+  }
+
   private void addAuthorityNonce(byte[] authority) {
-    AccountSetCodeAuthorizationCapsule authCapsule =
-        ChainBaseManager.getInstance().getAccountSetCodeAuthorizationStore().get(authority);
+    AccountStateCapsule authCapsule =
+        ChainBaseManager.getInstance().getAccountStateStore().get(authority);
     if (authCapsule == null) {
-      authCapsule = new AccountSetCodeAuthorizationCapsule();
+      authCapsule = new AccountStateCapsule();
     }
     authCapsule.addNonce();
     ChainBaseManager.getInstance()
-        .getAccountSetCodeAuthorizationStore().put(authority, authCapsule);
+        .getAccountStateStore().put(authority, authCapsule);
   }
 
   private void setCodeToAuthority(byte[] authority, byte[] codeAddress) {

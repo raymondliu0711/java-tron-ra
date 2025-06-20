@@ -51,8 +51,6 @@ public interface Repository {
 
   ContractStateCapsule getContractState(byte[] address);
 
-  AccountSetCodeAuthorizationCapsule getAccountSetCodeAuthorization(byte[] address);
-
   void updateContract(byte[] address, ContractCapsule contractCapsule);
 
   void updateContractState(byte[] address, ContractStateCapsule contractStateCapsule);
@@ -76,9 +74,6 @@ public interface Repository {
   void updateDelegatedResourceAccountIndex(byte[] word, DelegatedResourceAccountIndexCapsule delegatedResourceAccountIndexCapsule);
 
   void updateTransientStorageValue(byte[] address, byte[] key, byte[] value);
-
-  void updateAccountSetCodeAuthorization(
-      byte[] address, AccountSetCodeAuthorizationCapsule accountSetCodeAuthorizationCapsule);
 
   void saveCode(byte[] address, byte[] code);
 
@@ -123,8 +118,6 @@ public interface Repository {
   void putDelegatedResourceAccountIndex(Key key, Value value);
 
   void putTransientStorageValue(Key address, Key key, Value value);
-
-  void putAccountSetCodeAuthorization(Key key, Value value);
 
   long addTokenBalance(byte[] address, byte[] tokenId, long value);
 

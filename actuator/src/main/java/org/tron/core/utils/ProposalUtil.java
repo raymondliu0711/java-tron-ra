@@ -852,6 +852,11 @@ public class ProposalUtil {
           throw new ContractValidateException(
               "This value[ALLOW_TVM_PRAGUE] is only allowed to be 1");
         }
+        if (dynamicPropertiesStore.getAllowTvmLondon() != 1) {
+          throw new ContractValidateException(
+              "[ALLOW_TVM_LONDON] proposal must be approved "
+                  + "before [ALLOW_TVM_PRAGUE] can be proposed");
+        }
         break;
       }
       default:

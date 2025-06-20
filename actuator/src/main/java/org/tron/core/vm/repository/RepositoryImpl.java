@@ -27,7 +27,6 @@ import org.tron.common.utils.StringUtil;
 import org.tron.core.ChainBaseManager;
 import org.tron.core.capsule.AbiCapsule;
 import org.tron.core.capsule.AccountCapsule;
-import org.tron.core.capsule.AccountSetCodeAuthorizationCapsule;
 import org.tron.core.capsule.AssetIssueCapsule;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.BlockCapsule.BlockId;
@@ -48,7 +47,7 @@ import org.tron.core.exception.BadItemException;
 import org.tron.core.exception.ItemNotFoundException;
 import org.tron.core.exception.StoreException;
 import org.tron.core.store.AbiStore;
-import org.tron.core.store.AccountSetCodeAuthorizationStore;
+import org.tron.core.store.AccountStateStore;
 import org.tron.core.store.AccountStore;
 import org.tron.core.store.AssetIssueStore;
 import org.tron.core.store.AssetIssueV2Store;
@@ -68,7 +67,6 @@ import org.tron.core.vm.program.Program.IllegalOperationException;
 import org.tron.core.vm.program.Storage;
 import org.tron.protos.Protocol;
 import org.tron.protos.Protocol.Account;
-import org.tron.protos.Protocol.AccountSetCodeAuthorization;
 import org.tron.protos.Protocol.AccountType;
 import org.tron.protos.Protocol.DelegatedResource;
 import org.tron.protos.Protocol.Votes;
@@ -122,7 +120,7 @@ public class RepositoryImpl implements Repository {
   @Getter
   private DelegatedResourceAccountIndexStore delegatedResourceAccountIndexStore;
   @Getter
-  private AccountSetCodeAuthorizationStore accountSetCodeAuthorizationStore;
+  private AccountStateStore accountStateStore;
 
   private Repository parent = null;
 
@@ -140,7 +138,6 @@ public class RepositoryImpl implements Repository {
   private final HashMap<Key, Value<byte[]>> delegationCache = new HashMap<>();
   private final HashMap<Key, Value<DelegatedResourceAccountIndex>> delegatedResourceAccountIndexCache = new HashMap<>();
   private final HashBasedTable<Key, Key, Value<byte[]>> transientStorage = HashBasedTable.create();
-  private final HashMap<Key, Value<AccountSetCodeAuthorization>> accountSetCodeAuthorizationCache = new HashMap<>();
 
   public static void removeLruCache(byte[] address) {
   }
@@ -174,7 +171,7 @@ public class RepositoryImpl implements Repository {
       votesStore = manager.getVotesStore();
       delegationStore = manager.getDelegationStore();
       delegatedResourceAccountIndexStore = manager.getDelegatedResourceAccountIndexStore();
-      accountSetCodeAuthorizationStore = manager.getAccountSetCodeAuthorizationStore();
+      accountStateStore = manager.getAccountStateStore();
     }
     this.parent = parent;
   }
@@ -529,26 +526,6 @@ public class RepositoryImpl implements Repository {
   }
 
   @Override
-  public AccountSetCodeAuthorizationCapsule getAccountSetCodeAuthorization(byte[] address) {
-    Key key = Key.create(address);
-    if (accountSetCodeAuthorizationCache.containsKey(key)) {
-      return new AccountSetCodeAuthorizationCapsule(accountSetCodeAuthorizationCache.get(key).getValue());
-    }
-
-    AccountSetCodeAuthorizationCapsule accountSetCodeAuthorizationCapsule;
-    if (parent != null) {
-      accountSetCodeAuthorizationCapsule = parent.getAccountSetCodeAuthorization(address);
-    } else {
-      accountSetCodeAuthorizationCapsule = getAccountSetCodeAuthorizationStore().get(address);
-    }
-
-    if (accountSetCodeAuthorizationCapsule != null) {
-      accountSetCodeAuthorizationCache.put(key, Value.create(accountSetCodeAuthorizationCapsule));
-    }
-    return accountSetCodeAuthorizationCapsule;
-  }
-
-  @Override
   public void updateContract(byte[] address, ContractCapsule contractCapsule) {
     contractCache.put(Key.create(address),
         Value.create(contractCapsule, Type.DIRTY));
@@ -620,13 +597,6 @@ public class RepositoryImpl implements Repository {
   @Override
   public void updateTransientStorageValue(byte[] address, byte[] key, byte[] value) {
     transientStorage.put(Key.create(address), Key.create(key), Value.create(value, Type.DIRTY));
-  }
-
-  @Override
-  public void updateAccountSetCodeAuthorization(
-      byte[] address, AccountSetCodeAuthorizationCapsule accountSetCodeAuthorizationCapsule) {
-    accountSetCodeAuthorizationCache.put(
-        Key.create(address), Value.create(accountSetCodeAuthorizationCapsule, Type.DIRTY));
   }
 
   @Override
@@ -774,7 +744,6 @@ public class RepositoryImpl implements Repository {
     commitDelegationCache(repository);
     commitDelegatedResourceAccountIndexCache(repository);
     commitTransientStorage(repository);
-    commitAccountSetCodeAuthorizationCache(repository);
   }
 
   @Override
@@ -836,11 +805,6 @@ public class RepositoryImpl implements Repository {
   @Override
   public void putTransientStorageValue(Key address, Key key, Value value) {
     transientStorage.put(address, key, value);
-  }
-
-  @Override
-  public void putAccountSetCodeAuthorization(Key key, Value value) {
-    accountSetCodeAuthorizationCache.put(key, value);
   }
 
   @Override
@@ -1098,19 +1062,6 @@ public class RepositoryImpl implements Repository {
         }
       });
     }
-  }
-
-  private void commitAccountSetCodeAuthorizationCache(Repository deposit) {
-    accountSetCodeAuthorizationCache.forEach((key, value) -> {
-      if (value.getType().isDirty() || value.getType().isCreate()) {
-        if (deposit != null) {
-          deposit.putAccountSetCodeAuthorization(key, value);
-        } else {
-          getAccountSetCodeAuthorizationStore()
-              .put(key.getData(), new AccountSetCodeAuthorizationCapsule(value.getValue()));
-        }
-      }
-    });
   }
 
   /**

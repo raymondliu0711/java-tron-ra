@@ -37,7 +37,7 @@ import org.tron.core.store.AbiStore;
 import org.tron.core.store.AccountAssetStore;
 import org.tron.core.store.AccountIdIndexStore;
 import org.tron.core.store.AccountIndexStore;
-import org.tron.core.store.AccountSetCodeAuthorizationStore;
+import org.tron.core.store.AccountStateStore;
 import org.tron.core.store.AccountStore;
 import org.tron.core.store.AccountTraceStore;
 import org.tron.core.store.AssetIssueStore;
@@ -236,7 +236,7 @@ public class ChainBaseManager {
 
   @Autowired
   @Getter
-  private AccountSetCodeAuthorizationStore accountSetCodeAuthorizationStore;
+  private AccountStateStore accountStateStore;
 
   @Autowired
   private DbStatService dbStatService;
