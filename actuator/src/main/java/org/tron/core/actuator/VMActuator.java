@@ -17,6 +17,9 @@ import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +27,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.util.encoders.Hex;
 import org.tron.common.crypto.SignUtils;
 import org.tron.common.logsfilter.trigger.ContractTrigger;
+import org.tron.common.math.Maths;
+import org.tron.common.math.StrictMathWrapper;
 import org.tron.common.parameter.CommonParameter;
 import org.tron.common.runtime.InternalTransaction;
 import org.tron.common.runtime.InternalTransaction.ExecutorType;
@@ -405,9 +410,9 @@ public class VMActuator implements Actuator2 {
           if (newSmartContract.getOriginEnergyLimit() <= 0) {
             throw new ContractValidateException("The originEnergyLimit must be > 0");
           }
-          energyLimit = getAccountEnergyLimitWithFixRatio(creator, feeLimit, callValue);
+          energyLimit = getAccountEnergyLimitWithFixRatio(creator, 0, feeLimit, callValue);
         } else {
-          energyLimit = getAccountEnergyLimitWithFloatRatio(creator, feeLimit, callValue);
+          energyLimit = getAccountEnergyLimitWithFloatRatio(creator, 0, feeLimit, callValue);
         }
       }
 
@@ -532,8 +537,8 @@ public class VMActuator implements Actuator2 {
       } else {
         AccountCapsule creator = rootRepository
             .getAccount(deployedContract.getInstance().getOriginAddress().toByteArray());
-        // todo - caller usage
-        energyLimit = getTotalEnergyLimit(creator, caller, contract, feeLimit, callValue);
+        energyLimit =
+            getTotalEnergyLimit(creator, caller, ownerEnergyUsed, contract, feeLimit, callValue);
       }
 
       long maxCpuTimeOfOneTx = rootRepository.getDynamicPropertiesStore()
@@ -566,7 +571,9 @@ public class VMActuator implements Actuator2 {
       }
     }
 
-    program.getResult().setContractAddress(contractAddress);
+    if (!VMConfig.allowTvmPrague() || program != null) {
+      program.getResult().setContractAddress(contractAddress);
+    }
     //transfer from callerAddress to targetAddress according to callValue
 
     if (callValue > 0) {
@@ -580,6 +587,11 @@ public class VMActuator implements Actuator2 {
   }
 
   private void setCode(ProgramResult result) throws ContractValidateException {
+    if (!rootRepository.getDynamicPropertiesStore().supportVM()) {
+      logger.info("vm work is off, need to be opened by the committee");
+      throw new ContractValidateException("VM work is off, need to be opened by the committee");
+    }
+
     if (!VMConfig.allowTvmPrague()) {
       throw new ContractValidateException("SetCode transaction is not allowed");
     }
@@ -589,8 +601,24 @@ public class VMActuator implements Actuator2 {
       return;
     }
 
-    if (isEmpty(contract.getContractAddress().toByteArray())) {
+    byte[] contractAddress = contract.getContractAddress().toByteArray();
+    if (isEmpty(contractAddress)) {
       throw new ContractValidateException("Cannot get contract address from set code transaction");
+    }
+
+    long callValue = contract.getCallValue();
+    long tokenValue = 0;
+    if (VMConfig.allowTvmTransferTrc10()) {
+      tokenValue = contract.getCallTokenValue();
+    }
+
+    if (StorageUtils.getEnergyLimitHardFork()) {
+      if (callValue < 0) {
+        throw new ContractValidateException("callValue must be >= 0");
+      }
+      if (tokenValue < 0) {
+        throw new ContractValidateException("tokenValue must be >= 0");
+      }
     }
 
     List<SetCodeAuthorization> authsList = contract.getAuthsList();
@@ -601,23 +629,19 @@ public class VMActuator implements Actuator2 {
     // spend owner energy
     byte[] callerAddress = contract.getOwnerAddress().toByteArray();
     AccountCapsule caller = rootRepository.getAccount(callerAddress);
-    long energyLimit;
+
     long feeLimit = trx.getRawData().getFeeLimit();
-    long callValue = contract.getCallValue();
+    long energyLimit;
     if (isConstantCall) {
       energyLimit = maxEnergyLimit;
     } else {
       if (StorageUtils.getEnergyLimitHardFork()) {
-        energyLimit = getAccountEnergyLimitWithFixRatio(caller, feeLimit, callValue);
+        energyLimit = getAccountEnergyLimitWithFixRatio(caller, 0, feeLimit, callValue);
       } else {
-        energyLimit = getAccountEnergyLimitWithFloatRatio(caller, feeLimit, callValue);
+        energyLimit = getAccountEnergyLimitWithFloatRatio(caller, 0, feeLimit, callValue);
       }
     }
     long setCodeEnergyCost = EnergyCost.getNewAcctCall() * authsList.size();
-    // todo Actuator
-    // 保证两边同时上链
-    // 1. validate: setCode & call
-    // 2. exe: setCode & call
     if (setCodeEnergyCost > energyLimit) {
       throw new Program.OutOfEnergyException(
           "Not enough energy for setCode operation executing: totalEnergyLimit[%d],"
@@ -631,6 +655,29 @@ public class VMActuator implements Actuator2 {
       if (refundEnergy > 0) {
         result.refundOwnerEnergy(refundEnergy);
         setCodeEnergyCost -= refundEnergy;
+      }
+    }
+
+    ContractCapsule deployedContract = rootRepository.getContract(contractAddress);
+    byte[] code = rootRepository.getCode(contractAddress);
+    AccountCapsule contractAccount = rootRepository.getAccount(contractAddress);
+    if (contractAccount != null && contractAccount.getType() != Protocol.AccountType.Contract) {
+      if (isCodeDelegation(code)) {
+        byte[] parsedCodeAddress = Arrays.copyOfRange(
+            code, CODE_DELEGATION_PREFIX.length, code.length);
+        code = rootRepository.getCode(parsedCodeAddress);
+      }
+    }
+    if (null == deployedContract) {
+      logger.info("No contract or not a smart contract");
+      throw new ContractValidateException("No contract or not a smart contract");
+    }
+    if (isNotEmpty(code)) {
+      if (feeLimit < 0 || feeLimit > rootRepository.getDynamicPropertiesStore().getMaxFeeLimit()) {
+        logger.info("invalid feeLimit {}", feeLimit);
+        throw new ContractValidateException(
+            "feeLimit must be >= 0 and <= "
+                + rootRepository.getDynamicPropertiesStore().getMaxFeeLimit());
       }
     }
 
@@ -782,8 +829,8 @@ public class VMActuator implements Actuator2 {
     }
   }
 
-  public long getAccountEnergyLimitWithFixRatio(AccountCapsule account, long feeLimit,
-      long callValue) {
+  public long getAccountEnergyLimitWithFixRatio(AccountCapsule account, long callerEnergyUsed,
+      long feeLimit, long callValue) {
 
     long sunPerEnergy = VMConstant.SUN_PER_ENERGY;
     if (rootRepository.getDynamicPropertiesStore().getEnergyFee() > 0) {
@@ -820,12 +867,12 @@ public class VMActuator implements Actuator2 {
       receipt.setCallerEnergyMergedWindowSize(account.getWindowSize(ENERGY));
       rootRepository.updateAccount(account.createDbKey(), account);
     }
-    return min(availableEnergy, energyFromFeeLimit, VMConfig.disableJavaLangMath());
-
+    long energyLimit =  min(availableEnergy, energyFromFeeLimit, VMConfig.disableJavaLangMath());
+    return StrictMathWrapper.max(0, energyLimit - callerEnergyUsed);
   }
 
-  private long getAccountEnergyLimitWithFloatRatio(AccountCapsule account, long feeLimit,
-      long callValue) {
+  private long getAccountEnergyLimitWithFloatRatio(AccountCapsule account, long callerEnergyUsed,
+      long feeLimit, long callValue) {
 
     long sunPerEnergy = VMConstant.SUN_PER_ENERGY;
     if (rootRepository.getDynamicPropertiesStore().getEnergyFee() > 0) {
@@ -861,21 +908,24 @@ public class VMActuator implements Actuator2 {
       }
     }
 
-    return min(addExact(leftEnergyFromFreeze, energyFromBalance,
-            VMConfig.disableJavaLangMath()), energyFromFeeLimit, VMConfig.disableJavaLangMath());
+    long energyLimit = min(addExact(leftEnergyFromFreeze, energyFromBalance,
+      VMConfig.disableJavaLangMath()), energyFromFeeLimit, VMConfig.disableJavaLangMath());
+    return StrictMathWrapper.max(0, energyLimit - callerEnergyUsed);
   }
 
   public long getTotalEnergyLimit(AccountCapsule creator, AccountCapsule caller,
-      TriggerSmartContract contract, long feeLimit, long callValue)
+      long callerEnergyUsed, TriggerSmartContract contract, long feeLimit, long callValue)
       throws ContractValidateException {
     if (Objects.isNull(creator) && VMConfig.allowTvmConstantinople()) {
-      return getAccountEnergyLimitWithFixRatio(caller, feeLimit, callValue);
+      return getAccountEnergyLimitWithFixRatio(caller, callerEnergyUsed, feeLimit, callValue);
     }
     //  according to version
     if (StorageUtils.getEnergyLimitHardFork()) {
-      return getTotalEnergyLimitWithFixRatio(creator, caller, contract, feeLimit, callValue);
+      return getTotalEnergyLimitWithFixRatio(
+          creator, caller, callerEnergyUsed, contract, feeLimit, callValue);
     } else {
-      return getTotalEnergyLimitWithFloatRatio(creator, caller, contract, feeLimit, callValue);
+      return getTotalEnergyLimitWithFloatRatio(
+          creator, caller, callerEnergyUsed, contract, feeLimit, callValue);
     }
   }
 
@@ -923,10 +973,11 @@ public class VMActuator implements Actuator2 {
   }
 
   public long getTotalEnergyLimitWithFixRatio(AccountCapsule creator, AccountCapsule caller,
-      TriggerSmartContract contract, long feeLimit, long callValue)
+      long callerEnergyUsed, TriggerSmartContract contract, long feeLimit, long callValue)
       throws ContractValidateException {
 
-    long callerEnergyLimit = getAccountEnergyLimitWithFixRatio(caller, feeLimit, callValue);
+    long callerEnergyLimit = getAccountEnergyLimitWithFixRatio(
+        caller, callerEnergyUsed, feeLimit, callValue);
     if (Arrays.equals(creator.getAddress().toByteArray(), caller.getAddress().toByteArray())) {
       // when the creator calls his own contract, this logic will be used.
       // so, the creator must use a BIG feeLimit to call his own contract,
@@ -992,9 +1043,10 @@ public class VMActuator implements Actuator2 {
   }
 
   private long getTotalEnergyLimitWithFloatRatio(AccountCapsule creator, AccountCapsule caller,
-      TriggerSmartContract contract, long feeLimit, long callValue) {
+      long callerEnergyUsed, TriggerSmartContract contract, long feeLimit, long callValue) {
 
-    long callerEnergyLimit = getAccountEnergyLimitWithFloatRatio(caller, feeLimit, callValue);
+    long callerEnergyLimit = getAccountEnergyLimitWithFloatRatio(
+        caller, callerEnergyUsed, feeLimit, callValue);
     if (Arrays.equals(creator.getAddress().toByteArray(), caller.getAddress().toByteArray())) {
       return callerEnergyLimit;
     }

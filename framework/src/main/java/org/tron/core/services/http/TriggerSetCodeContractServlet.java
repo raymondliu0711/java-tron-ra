@@ -86,8 +86,11 @@ public class TriggerSetCodeContractServlet extends RateLimiterServlet {
         authBuilder.setNonce(Util.getJsonLongValue(auth, "nonce"));
 
         setCodeAuthBuilder.setAuth(authBuilder);
-        setCodeAuthBuilder.setSignature(
-            ByteString.fromHex(setCodeAuthorization.getString("signature")));
+
+        JSONArray signatures = Util.getJsonArray(setCodeAuthorization, "signature", true);
+        for (int j = 0; j < signatures.size(); j++) {
+          setCodeAuthBuilder.addSignature(ByteString.fromHex(signatures.getString(j)));
+        }
 
         build.addAuths(setCodeAuthBuilder);
       }

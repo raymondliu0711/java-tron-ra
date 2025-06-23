@@ -53,6 +53,14 @@ public class RuntimeImpl implements Runtime {
         }
         actuator2 = new VMActuator(context.isStatic());
         break;
+//      case ContractType.SetCodeContract_VALUE:
+//        if (!CommonParameter.getInstance().getActuatorSet().isEmpty()
+//            && !CommonParameter.getInstance()
+//                .getActuatorSet()
+//                .contains(VMSetCodeActuator.class.getSimpleName())) {
+//          throw new ContractValidateException("not exist contract SetCodeContract");
+//        }
+//        actuator2 = new VMSetCodeActuator(context.isStatic());
       default:
         actuatorList = ActuatorCreator.getINSTANCE().createActuator(context.getTrxCap());
     }
